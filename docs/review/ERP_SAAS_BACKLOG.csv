@@ -1,0 +1,26 @@
+ID,Titulo,Tipo,Prioridade,Esforco,Sprint,Descricao,Arquivos
+SEC-001,Corrigir role em server actions,Seguranca,P0,PP,1,"Server actions recebem userRole do client. Deve ler da sessao via auth().",src/lib/approval/actions.ts
+SEC-002,Gerar AUTH_SECRET criptografico,Seguranca,P0,PP,1,"AUTH_SECRET em .env.local e string legivel. Gerar com openssl rand -base64 32.",.env.local
+SEC-003,Expandir RBAC middleware,Seguranca,P1,P,2,"Apenas 2 de 35 rotas protegidas. Expandir para financeiro/aprovacoes.",src/middleware.ts
+SEC-004,Enforced Zod em server actions,Seguranca,P1,P,2,"11 schemas Zod definidos mas nunca usados com .parse().",src/lib/actions/*.ts
+SEC-005,Adicionar CSP e security headers,Seguranca,P1,PP,2,"Sem Content-Security-Policy ou headers de seguranca.",next.config.ts
+SEC-006,Rate limiting em auth e actions,Seguranca,P1,P,2,"Sem rate limiting. Vulneravel a brute force.",src/middleware.ts
+INFRA-001,GitHub Actions CI,Infraestrutura,P0,P,1,"Sem pipeline CI/CD. Criar lint + type-check + test + build.",.github/workflows/ci.yml
+INFRA-002,PostgreSQL + migrations,Infraestrutura,P1,M,3,"Schema definido mas sem conexao real. Configurar pool e migrations.",src/lib/db/index.ts
+INFRA-003,Dockerfile e docker-compose,Infraestrutura,P2,P,4,"Sem containerizacao. Criar multi-stage Dockerfile.",Dockerfile
+INFRA-004,Environments staging/production,Infraestrutura,P2,P,4,"Apenas .env.local. Criar separacao de ambientes.",.env.*
+QUAL-001,Vitest + primeiros testes,Qualidade,P0,P,1,"Zero testes. Instalar Vitest e testar modulo de aprovacao.",vitest.config.ts
+QUAL-002,Error/loading states globais,Qualidade,P1,PP,1,"Nenhum error.tsx ou loading.tsx. Criar fallbacks.",src/app/(dashboard)/error.tsx
+QUAL-003,Configurar Prettier,Qualidade,P2,PP,4,"Sem formatter automatico.",.prettierrc
+QUAL-004,Testes e2e Playwright,Qualidade,P2,M,4,"Sem testes end-to-end.",playwright.config.ts
+AUTH-001,Azure AD provider,Autenticacao,P0,P,2,"Auth e mock. Implementar Azure AD real.",src/auth.ts
+DATA-001,Substituir mock por queries reais,Dados,P1,GG,3,"Todos modulos com useState hardcoded. Migrar para Drizzle queries.",src/lib/actions/*.ts
+DATA-002,Indexes em FKs e campos de busca,Dados,P2,PP,4,"Apenas PKs no schema. Adicionar indexes.",src/lib/db/schema.ts
+DATA-003,Soft-delete,Dados,P2,P,4,"Exclusao permanente. Adicionar deletedAt.",src/lib/db/schema.ts
+DATA-004,Audit logs reais,Dados,P1,P,3,"Tabela auditLogs definida mas nunca populada.",src/lib/actions/*.ts
+UX-001,Componentes base Button/Input/Modal,UX,P2,M,4,"Botoes e inputs inline repetidos.",src/components/ui/
+UX-002,Responsividade mobile,UX,P2,G,4,"Sidebar fixa e tabelas sem scroll mobile.",src/components/layout/sidebar.tsx
+UX-003,Acessibilidade a11y,UX,P2,M,4,"Poucos ARIA attrs e sem focus management.",Global
+FEAT-001,Azure AD SSO completo,Feature,P0,P,2,"SSO com group mapping e provisioning.",src/auth.ts
+FEAT-002,Notificacoes em tempo real,Feature,P3,G,-,"Dashboard notificacoes sao mock.",src/lib/db/schema.ts
+FEAT-003,Multi-tenancy,Feature,P3,GG,-,"Sistema single-tenant. Adicionar tenantId.",src/lib/db/schema.ts
