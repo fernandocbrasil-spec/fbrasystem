@@ -139,16 +139,12 @@ const navGroups: NavGroup[] = [
         category: "Cadastros",
         icon: Database,
         items: [
-            { label: "Cadastros Gerais", href: "/cadastros", icon: Database,
-                sub: [
-                    { label: "Empresas", href: "/cadastros", icon: Building2 },
-                    { label: "Socios", href: "/cadastros", icon: UserCircle },
-                    { label: "Colaboradores", href: "/cadastros", icon: Users },
-                    { label: "Centro de Custo / Caso", href: "/cadastros", icon: Briefcase },
-                    { label: "Contas Bancarias", href: "/cadastros", icon: Landmark },
-                    { label: "Fornecedores", href: "/cadastros", icon: Truck },
-                ],
-            },
+            { label: "Empresas", href: "/cadastros/empresas", icon: Building2 },
+            { label: "Socios", href: "/cadastros/socios", icon: UserCircle },
+            { label: "Colaboradores", href: "/cadastros/colaboradores", icon: Users },
+            { label: "Centro de Custo / Caso", href: "/cadastros/centros-de-custo", icon: Briefcase },
+            { label: "Contas Bancarias", href: "/cadastros/contas-bancarias", icon: Landmark },
+            { label: "Fornecedores", href: "/cadastros/fornecedores", icon: Truck },
         ],
     },
     {
