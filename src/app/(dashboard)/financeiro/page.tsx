@@ -6,7 +6,8 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { ReportToolbar, getDensityClasses, type ColumnDef, type Density, type FilterDef } from "@/components/ui/report-toolbar";
 import { ApprovalBadge } from "@/components/approval/approval-badge";
 import { MOCK_RECEIVABLES } from "@/lib/mock-data";
-import { Download, Search } from "lucide-react";
+import { Button, SearchInput } from "@/components/ui";
+import { Download } from "lucide-react";
 
 const TABLE_COLUMNS: ColumnDef[] = [
     { key: "cliente", label: "Cliente / Descricao", defaultVisible: true },
@@ -36,10 +37,9 @@ export default function FinanceiroPage() {
                     title="Financeiro e Cobranca"
                     subtitle="Gestao do Contas a Receber (AR) e Fluxo de Caixa do escritorio."
                     actions={
-                        <button className="flex items-center justify-center gap-2 rounded-md bg-pf-black px-3 py-1.5 font-sans text-xs font-bold text-white transition-all hover:bg-gray-800 active:scale-95 shadow-sm">
-                            <Download className="h-4 w-4" aria-hidden="true" />
+                        <Button variant="dark" icon={<Download className="h-4 w-4" />}>
                             Importar OFX/CSV
-                        </button>
+                        </Button>
                     }
                 />
 
@@ -67,17 +67,13 @@ export default function FinanceiroPage() {
             <div className="sticky top-0 z-20 bg-[#F4F5F7] py-2 space-y-2">
                 <div className="flex items-center justify-between">
                     <span className="text-sm font-bold text-pf-black">Contas a Receber</span>
-                    <div className="relative">
-                        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-pf-grey" aria-hidden="true" />
-                        <input
-                            type="search"
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                            placeholder="Buscar cliente..."
-                            aria-label="Buscar cliente"
-                            className="h-8 w-48 rounded-md border border-pf-grey/20 pl-10 pr-4 text-sm font-sans outline-none focus:border-pf-blue focus:ring-1 focus:ring-pf-blue bg-white"
-                        />
-                    </div>
+                    <SearchInput
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        onClear={() => setSearch("")}
+                        placeholder="Buscar cliente..."
+                        aria-label="Buscar cliente"
+                    />
                 </div>
 
                 <ReportToolbar

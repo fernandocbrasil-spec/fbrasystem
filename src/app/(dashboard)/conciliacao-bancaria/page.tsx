@@ -6,7 +6,8 @@ import { ReportToolbar, getDensityClasses, type ColumnDef, type Density, type Fi
 import { useToast } from "@/components/ui/toast";
 import { MOCK_BANK_ENTRIES } from "@/lib/mock-data";
 import type { MockBankEntry } from "@/lib/mock-data";
-import { Landmark, Download, Search, Link2, CheckCircle2, Clock, Loader2 } from "lucide-react";
+import { Button, SearchInput } from "@/components/ui";
+import { Landmark, Download, Link2, CheckCircle2, Clock, Loader2 } from "lucide-react";
 
 // ======================== HELPERS ========================
 
@@ -175,18 +176,14 @@ export default function ConciliacaoBancariaPage() {
                     title="Conciliacoes Bancarias"
                     subtitle="Banco do Brasil — Ag 1234 / CC 56789-0"
                     actions={
-                        <button
+                        <Button
+                            variant="dark"
                             onClick={handleImportClick}
                             disabled={importing}
-                            className="flex items-center justify-center gap-2 rounded-md bg-pf-black px-3 py-1.5 font-sans text-xs font-bold text-white transition-all hover:bg-gray-800 active:scale-95 shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
+                            icon={importing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
                         >
-                            {importing ? (
-                                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-                            ) : (
-                                <Download className="h-4 w-4" aria-hidden="true" />
-                            )}
                             {importing ? "Importando..." : "Importar OFX"}
-                        </button>
+                        </Button>
                     }
                 />
             </div>
@@ -248,14 +245,13 @@ export default function ConciliacaoBancariaPage() {
                     </div>
 
                     {/* Search */}
-                    <div className="relative flex items-center ml-auto">
-                        <Search className="absolute left-2.5 h-3.5 w-3.5 text-pf-grey pointer-events-none" />
-                        <input
-                            type="search"
-                            placeholder="Buscar descricao..."
+                    <div className="ml-auto">
+                        <SearchInput
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
-                            className="w-64 bg-white border border-pf-grey/20 pl-8 pr-3 py-1.5 text-xs text-pf-black placeholder:text-pf-grey/60 outline-none rounded-md"
+                            onClear={() => setSearch("")}
+                            placeholder="Buscar descricao..."
+                            className="w-64"
                         />
                     </div>
                 </div>

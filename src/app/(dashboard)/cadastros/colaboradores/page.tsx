@@ -3,8 +3,9 @@
 import { useState, useMemo } from "react";
 import { PageHeader } from "@/components/ui/page-header";
 import { FilterDropdown } from "@/components/ui/filter-dropdown";
+import { Button, SearchInput } from "@/components/ui";
 import { useToast } from "@/components/ui/toast";
-import { Users, Plus, X, Search } from "lucide-react";
+import { Users, Plus, X } from "lucide-react";
 
 type Colaborador = { id: number; nome: string; email: string; cargo: string; departamento: string; status: string };
 
@@ -73,29 +74,25 @@ export default function ColaboradoresPage() {
                     title="Colaboradores"
                     subtitle="Equipe, cargos e departamentos"
                     actions={
-                        <button
+                        <Button
                             onClick={() => { resetForm(); setShowAdd(true); }}
-                            className="flex items-center justify-center gap-2 rounded-md bg-pf-blue px-3 py-1.5 font-sans text-xs font-bold text-white transition-all hover:bg-pf-black active:scale-95 shadow-sm"
+                            icon={<Plus className="h-4 w-4" />}
                         >
-                            <Plus className="h-4 w-4" aria-hidden="true" />
                             Adicionar
-                        </button>
+                        </Button>
                     }
                 />
             </div>
 
             {/* Toolbar */}
             <div className="flex items-center gap-3">
-                <div className="relative flex-1 max-w-sm">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-pf-grey" />
-                    <input
-                        type="text"
-                        placeholder="Buscar por nome, email ou cargo..."
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        className="w-full h-9 rounded-md border border-pf-grey/20 bg-white pl-9 pr-4 text-sm font-sans text-pf-black outline-none focus:border-pf-blue transition-colors"
-                    />
-                </div>
+                <SearchInput
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    onClear={() => setSearch("")}
+                    placeholder="Buscar por nome, email ou cargo..."
+                    className="flex-1 max-w-sm"
+                />
                 <FilterDropdown label="Departamento" options={DEPTO_OPTIONS} selected={filterDepto} onChange={setFilterDepto} />
                 <FilterDropdown label="Status" options={STATUS_OPTIONS} selected={filterStatus} onChange={setFilterStatus} />
             </div>

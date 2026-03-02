@@ -5,7 +5,8 @@ import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ReportToolbar, getDensityClasses, type ColumnDef, type Density, type FilterDef } from "@/components/ui/report-toolbar";
 import { useToast } from "@/components/ui/toast";
-import { Receipt, Calendar, CheckSquare, Search, Loader2 } from "lucide-react";
+import { Button, SearchInput } from "@/components/ui";
+import { Receipt, Calendar, CheckSquare, Loader2 } from "lucide-react";
 
 const TABLE_COLUMNS: ColumnDef[] = [
     { key: "mes", label: "Mes Ref.", defaultVisible: true },
@@ -169,18 +170,9 @@ export default function BillingPage() {
                     title="Faturamento (Pre-Faturas)"
                     subtitle="Modulo de geracao e aprovacao de cobrancas baseadas nos contratos (Plans) ou Horas."
                     actions={
-                        <button
-                            onClick={handleRunEngine}
-                            disabled={engineLoading}
-                            className="flex items-center justify-center gap-2 rounded-md bg-pf-black px-3 py-1.5 font-sans text-xs font-bold text-white transition-all hover:bg-gray-800 active:scale-95 shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
-                        >
-                            {engineLoading ? (
-                                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-                            ) : (
-                                <Receipt className="h-4 w-4" aria-hidden="true" />
-                            )}
+                        <Button variant="dark" icon={engineLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Receipt className="h-4 w-4" />} onClick={handleRunEngine} disabled={engineLoading}>
                             {engineLoading ? "Processando..." : `Rodar Engine de Fechamento (${PERIOD_LABELS[periodIndex].slice(0, 6)})`}
-                        </button>
+                        </Button>
                     }
                 />
 
@@ -213,23 +205,16 @@ export default function BillingPage() {
                 <div className="flex items-center justify-between">
                     <span className="text-sm font-bold text-pf-black">Pre-Faturas do Periodo</span>
                     <div className="flex gap-2">
-                        <div className="relative">
-                            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-pf-grey" aria-hidden="true" />
-                            <input
-                                type="search"
-                                value={search}
-                                onChange={(e) => setSearch(e.target.value)}
-                                placeholder="Buscar cliente ou caso..."
-                                aria-label="Buscar cliente ou caso"
-                                className="h-8 w-48 rounded-md border border-pf-grey/20 pl-10 pr-4 text-sm font-sans outline-none focus:border-pf-blue focus:ring-1 focus:ring-pf-blue bg-white"
-                            />
-                        </div>
-                        <button
-                            onClick={handleCyclePeriod}
-                            className="flex h-8 items-center gap-2 rounded-md border border-pf-grey/20 bg-white px-4 text-sm font-semibold text-pf-black hover:bg-pf-blue/5 hover:text-pf-blue hover:border-pf-blue transition-colors"
-                        >
-                            <Calendar className="h-4 w-4" aria-hidden="true" /> {PERIOD_LABELS[periodIndex]}
-                        </button>
+                        <SearchInput
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            onClear={() => setSearch("")}
+                            placeholder="Buscar cliente ou caso..."
+                            aria-label="Buscar cliente ou caso"
+                        />
+                        <Button variant="secondary" icon={<Calendar className="h-4 w-4" />} onClick={handleCyclePeriod} className="h-8">
+                            {PERIOD_LABELS[periodIndex]}
+                        </Button>
                     </div>
                 </div>
 

@@ -9,6 +9,7 @@
 import { auth } from "@/auth";
 import { canUserApprove, type ApprovalEntityType, type UserRole } from "./types";
 import { approvalActionSchema, batchApprovalSchema } from "@/lib/schemas";
+import { rateLimitApproval } from "@/lib/rate-limit";
 
 type ApproveResult = { success: boolean; error?: string };
 
@@ -27,6 +28,9 @@ export async function approveEntity({
 }): Promise<ApproveResult> {
     const sessionUser = await getSessionRole();
     if (!sessionUser) return { success: false, error: "Nao autenticado." };
+
+    const rl = rateLimitApproval(sessionUser.userId);
+    if (!rl.success) return { success: false, error: "Limite de requisicoes excedido. Tente novamente em breve." };
 
     const parsed = approvalActionSchema.safeParse({
         entityType,
@@ -59,6 +63,9 @@ export async function rejectEntity({
     const sessionUser = await getSessionRole();
     if (!sessionUser) return { success: false, error: "Nao autenticado." };
 
+    const rl = rateLimitApproval(sessionUser.userId);
+    if (!rl.success) return { success: false, error: "Limite de requisicoes excedido. Tente novamente em breve." };
+
     const parsed = approvalActionSchema.safeParse({
         entityType,
         entityId,
@@ -88,6 +95,9 @@ export async function batchApproveEntities({
 }): Promise<ApproveResult> {
     const sessionUser = await getSessionRole();
     if (!sessionUser) return { success: false, error: "Nao autenticado." };
+
+    const rl = rateLimitApproval(sessionUser.userId);
+    if (!rl.success) return { success: false, error: "Limite de requisicoes excedido. Tente novamente em breve." };
 
     const parsed = batchApprovalSchema.safeParse({
         entityType,

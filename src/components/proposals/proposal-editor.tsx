@@ -36,17 +36,34 @@ function getInitials(name: string): string {
     return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
-export function ProposalEditor() {
+type ProposalEditorProps = {
+    initialClient?: string;
+    initialContact?: string;
+    initialValue?: string;
+    fromLeadId?: string;
+};
+
+export function ProposalEditor({ initialClient, initialContact, initialValue, fromLeadId }: ProposalEditorProps) {
     const { toast } = useToast();
     const [activeTab, setActiveTab] = useState("capa");
-    const [data, setData] = useState<EditorData>(DEFAULT_DATA);
+    const [data, setData] = useState<EditorData>(() => {
+        if (initialClient) {
+            return {
+                ...DEFAULT_DATA,
+                clientName: initialClient,
+                fees: initialValue?.replace(/R\$\s?/, "").trim() || DEFAULT_DATA.fees,
+            };
+        }
+        return DEFAULT_DATA;
+    });
     const [professionals, setProfessionals] = useState<Professional[]>(DEFAULT_PROFESSIONALS);
     const [showAddForm, setShowAddForm] = useState(false);
     const [newProfName, setNewProfName] = useState("");
     const [newProfRole, setNewProfRole] = useState("");
 
-    // Load draft from localStorage on mount
+    // Load draft from localStorage on mount (only if not pre-filled from lead)
     useEffect(() => {
+        if (fromLeadId) return; // Skip draft loading when converting from lead
         try {
             const stored = localStorage.getItem(DRAFT_KEY);
             if (stored) {
@@ -59,7 +76,7 @@ export function ProposalEditor() {
         } catch {
             // ignore parse errors, use defaults
         }
-    }, []);
+    }, [fromLeadId]);
 
     const handlePreviewPdf = () => {
         toast("Abrindo pré-visualização para impressão...", "info");

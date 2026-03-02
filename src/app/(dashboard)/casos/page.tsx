@@ -4,7 +4,8 @@ import { useState } from "react";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ReportToolbar, getDensityClasses, type ColumnDef, type Density, type FilterDef } from "@/components/ui/report-toolbar";
-import { Search, MapPin, CalendarDays, Briefcase } from "lucide-react";
+import { SearchInput } from "@/components/ui";
+import { MapPin, CalendarDays, Briefcase } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 type CaseStatus = "Ativo" | "Em Pausa";
@@ -88,17 +89,13 @@ export default function CasesPage() {
             <div className="sticky top-0 z-20 bg-[#F4F5F7] py-2 space-y-2">
                 <div className="flex items-center justify-between">
                     <span className="text-sm font-bold text-pf-black">Todos os Casos</span>
-                    <div className="relative">
-                        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-pf-grey" aria-hidden="true" />
-                        <input
-                            type="search"
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                            placeholder="Buscar caso..."
-                            aria-label="Buscar caso"
-                            className="h-8 w-48 rounded-md border border-pf-grey/20 pl-10 pr-4 text-sm font-sans outline-none focus:border-pf-blue focus:ring-1 focus:ring-pf-blue bg-white"
-                        />
-                    </div>
+                    <SearchInput
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        onClear={() => setSearch("")}
+                        placeholder="Buscar caso..."
+                        aria-label="Buscar caso"
+                    />
                 </div>
 
                 <ReportToolbar

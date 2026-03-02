@@ -7,7 +7,8 @@ import { ReportToolbar, getDensityClasses, type ColumnDef, type Density, type Fi
 import { ApprovalBadge } from "@/components/approval/approval-badge";
 import { MOCK_PAYABLES } from "@/lib/mock-data";
 import { useToast } from "@/components/ui/toast";
-import { Plus, Search, X } from "lucide-react";
+import { Button, SearchInput } from "@/components/ui";
+import { Plus, X } from "lucide-react";
 
 import type { MockPayable } from "@/lib/mock-data";
 
@@ -141,13 +142,9 @@ export default function ContasAPagarPage() {
                     title="Contas a Pagar (AP)"
                     subtitle="Gestao de despesas, infraestrutura e pagamentos da firma."
                     actions={
-                        <button
-                            onClick={() => setShowForm((v) => !v)}
-                            className="flex items-center justify-center gap-2 rounded-md bg-pf-black px-3 py-1.5 font-sans text-xs font-bold text-white transition-all hover:bg-gray-800 active:scale-95 shadow-sm"
-                        >
-                            {showForm ? <X className="h-4 w-4" aria-hidden="true" /> : <Plus className="h-4 w-4" aria-hidden="true" />}
+                        <Button variant="dark" icon={showForm ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />} onClick={() => setShowForm((v) => !v)}>
                             {showForm ? "Cancelar" : "Nova Despesa"}
-                        </button>
+                        </Button>
                     }
                 />
 
@@ -199,12 +196,9 @@ export default function ContasAPagarPage() {
                             </div>
                         </div>
                         <div className="flex justify-end mt-4">
-                            <button
-                                onClick={handleAddExpense}
-                                className="rounded-md bg-pf-blue px-6 py-2.5 font-sans text-sm font-bold text-white hover:bg-pf-black transition-all shadow-sm"
-                            >
+                            <Button onClick={handleAddExpense}>
                                 Adicionar Despesa
-                            </button>
+                            </Button>
                         </div>
                     </div>
                 )}
@@ -236,17 +230,13 @@ export default function ContasAPagarPage() {
             <div className="sticky top-0 z-20 bg-[#F4F5F7] py-2 space-y-2">
                 <div className="flex items-center justify-between">
                     <span className="text-sm font-bold text-pf-black">Despesas do Periodo</span>
-                    <div className="relative">
-                        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-pf-grey" aria-hidden="true" />
-                        <input
-                            type="search"
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                            placeholder="Buscar fornecedor..."
-                            aria-label="Buscar fornecedor"
-                            className="h-8 w-48 rounded-md border border-pf-grey/20 pl-10 pr-4 text-sm font-sans outline-none focus:border-pf-blue focus:ring-1 focus:ring-pf-blue bg-white"
-                        />
-                    </div>
+                    <SearchInput
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        onClear={() => setSearch("")}
+                        placeholder="Buscar fornecedor..."
+                        aria-label="Buscar fornecedor"
+                    />
                 </div>
 
                 <ReportToolbar

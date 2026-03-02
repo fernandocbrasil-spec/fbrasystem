@@ -5,7 +5,8 @@ import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ReportToolbar, getDensityClasses, type ColumnDef, type Density, type FilterDef } from "@/components/ui/report-toolbar";
 import { useToast } from "@/components/ui/toast";
-import { Search, Play, Briefcase, CalendarDays, X } from "lucide-react";
+import { Button, SearchInput } from "@/components/ui";
+import { Play, Briefcase, CalendarDays, X } from "lucide-react";
 
 type WorkflowStatus = "Atrasado" | "Aguardando Aprovação" | "Em Andamento" | "Concluído";
 
@@ -134,13 +135,9 @@ export default function WorkflowsPage() {
                     title="Workflows"
                     subtitle="Gerencie processos padronizados e acompanhe o progresso de cada etapa."
                     actions={
-                        <button
-                            onClick={() => setShowForm((prev) => !prev)}
-                            className="flex items-center justify-center gap-2 rounded-md bg-pf-blue px-3 py-1.5 font-sans text-xs font-bold text-white transition-all hover:bg-blue-700 active:scale-95 shadow-sm"
-                        >
-                            <Play className="h-4 w-4" aria-hidden="true" />
+                        <Button icon={<Play className="h-4 w-4" />} onClick={() => setShowForm((prev) => !prev)}>
                             Iniciar Workflow
-                        </button>
+                        </Button>
                     }
                 />
 
@@ -188,19 +185,12 @@ export default function WorkflowsPage() {
                             </div>
                         </div>
                         <div className="flex justify-end gap-2 pt-1">
-                            <button
-                                onClick={() => setShowForm(false)}
-                                className="rounded-md border border-pf-grey/20 bg-white px-3 py-1.5 text-xs font-bold text-pf-grey hover:text-pf-black hover:border-pf-grey/40 transition-colors"
-                            >
+                            <Button variant="secondary" size="sm" onClick={() => setShowForm(false)}>
                                 Cancelar
-                            </button>
-                            <button
-                                onClick={handleSubmitWorkflow}
-                                disabled={!formEntity.trim() || !formResponsible.trim()}
-                                className="rounded-md bg-pf-blue px-4 py-1.5 text-xs font-bold text-white hover:bg-blue-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                            >
+                            </Button>
+                            <Button size="sm" onClick={handleSubmitWorkflow} disabled={!formEntity.trim() || !formResponsible.trim()}>
                                 Iniciar
-                            </button>
+                            </Button>
                         </div>
                     </div>
                 )}
@@ -234,17 +224,13 @@ export default function WorkflowsPage() {
             <div className="sticky top-0 z-20 bg-[#F4F5F7] py-2 space-y-2">
                 <div className="flex items-center justify-between">
                     <span className="text-sm font-bold text-pf-black">Workflows do Periodo</span>
-                    <div className="relative">
-                        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-pf-grey" aria-hidden="true" />
-                        <input
-                            type="search"
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                            placeholder="Buscar workflow..."
-                            aria-label="Buscar workflow"
-                            className="h-8 w-48 rounded-md border border-pf-grey/20 pl-10 pr-4 text-sm font-sans outline-none focus:border-pf-blue focus:ring-1 focus:ring-pf-blue bg-white"
-                        />
-                    </div>
+                    <SearchInput
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        onClear={() => setSearch("")}
+                        placeholder="Buscar workflow..."
+                        aria-label="Buscar workflow"
+                    />
                 </div>
 
                 <ReportToolbar

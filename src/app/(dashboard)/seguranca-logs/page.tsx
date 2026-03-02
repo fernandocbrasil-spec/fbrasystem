@@ -1,7 +1,8 @@
 "use client";
 
 import { PageHeader } from "@/components/ui/page-header";
-import { ShieldAlert, Search } from "lucide-react";
+import { SearchInput } from "@/components/ui";
+import { ShieldAlert } from "lucide-react";
 import { useState, useMemo } from "react";
 
 type AuditLog = { id: string; acao: string; usuario: string; hora: string; tipo: "WARNING" | "INFO" | "CRITICAL" };
@@ -105,14 +106,13 @@ export default function SegurancaLogsPage() {
                         </button>
                     ))}
                 </div>
-                <div className="relative flex items-center ml-auto">
-                    <Search className="absolute left-2.5 h-3.5 w-3.5 text-pf-grey pointer-events-none" />
-                    <input
-                        type="search"
-                        placeholder="Buscar evento ou usuario..."
+                <div className="ml-auto">
+                    <SearchInput
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
-                        className="w-64 bg-white border border-pf-grey/20 pl-8 pr-3 py-1.5 text-xs text-pf-black placeholder:text-pf-grey/60 outline-none rounded-md"
+                        onClear={() => setSearch("")}
+                        placeholder="Buscar evento ou usuario..."
+                        className="w-64"
                     />
                 </div>
             </div>

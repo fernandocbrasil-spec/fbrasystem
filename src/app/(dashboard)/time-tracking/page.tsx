@@ -8,8 +8,9 @@ import { ApprovalBadge } from "@/components/approval/approval-badge";
 import { useToast } from "@/components/ui/toast";
 import { MOCK_TIME_ENTRIES, MOCK_CASE_OPTIONS } from "@/lib/mock-data";
 import type { MockTimeEntry } from "@/lib/mock-data";
+import { Button, SearchInput } from "@/components/ui";
 import {
-    Search, Play, Pause, Square, Plus, Clock, X,
+    Play, Pause, Square, Plus, Clock, X,
 } from "lucide-react";
 
 type ActivityType = "reuniao" | "pesquisa" | "elaboracao" | "revisao" | "audiencia" | "administrativo";
@@ -176,13 +177,9 @@ export default function TimeTrackingPage() {
                     title="Apontamento de Horas"
                     subtitle="Registre e acompanhe as horas trabalhadas por caso."
                     actions={
-                        <button
-                            onClick={() => setShowManualForm((prev) => !prev)}
-                            className="flex items-center justify-center gap-2 rounded-md bg-pf-black px-3 py-1.5 font-sans text-xs font-bold text-white transition-all hover:bg-gray-800 active:scale-95 shadow-sm"
-                        >
-                            <Plus className="h-4 w-4" aria-hidden="true" />
+                        <Button variant="dark" icon={<Plus className="h-4 w-4" />} onClick={() => setShowManualForm((prev) => !prev)}>
                             Lancar Manual
-                        </button>
+                        </Button>
                     }
                 />
 
@@ -247,19 +244,12 @@ export default function TimeTrackingPage() {
                                 Faturavel
                             </label>
                             <div className="flex gap-2">
-                                <button
-                                    onClick={() => setShowManualForm(false)}
-                                    className="rounded-md border border-pf-grey/20 bg-white px-3 py-1.5 text-xs font-bold text-pf-grey hover:text-pf-black hover:border-pf-grey/40 transition-colors"
-                                >
+                                <Button variant="secondary" size="sm" onClick={() => setShowManualForm(false)}>
                                     Cancelar
-                                </button>
-                                <button
-                                    onClick={handleManualSubmit}
-                                    disabled={!manualDescription.trim() || parseDurationToMinutes(manualDuration) === null || (parseDurationToMinutes(manualDuration) ?? 0) <= 0}
-                                    className="rounded-md bg-pf-black px-4 py-1.5 text-xs font-bold text-white hover:bg-gray-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                                >
+                                </Button>
+                                <Button variant="dark" size="sm" onClick={handleManualSubmit} disabled={!manualDescription.trim() || parseDurationToMinutes(manualDuration) === null || (parseDurationToMinutes(manualDuration) ?? 0) <= 0}>
                                     Adicionar
-                                </button>
+                                </Button>
                             </div>
                         </div>
                     </div>
@@ -351,17 +341,13 @@ export default function TimeTrackingPage() {
             <div className="sticky top-0 z-20 bg-[#F4F5F7] py-2 space-y-2">
                 <div className="flex items-center justify-between">
                     <span className="text-sm font-bold text-pf-black">Lancamentos do Dia</span>
-                    <div className="relative">
-                        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-pf-grey" aria-hidden="true" />
-                        <input
-                            type="search"
-                            value={search}
-                            onChange={e => setSearch(e.target.value)}
-                            placeholder="Buscar atividade..."
-                            aria-label="Buscar atividade"
-                            className="h-8 w-48 rounded-md border border-pf-grey/20 pl-10 pr-4 text-sm font-sans outline-none focus:border-pf-blue focus:ring-1 focus:ring-pf-blue bg-white"
-                        />
-                    </div>
+                    <SearchInput
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        onClear={() => setSearch("")}
+                        placeholder="Buscar atividade..."
+                        aria-label="Buscar atividade"
+                    />
                 </div>
 
                 <ReportToolbar

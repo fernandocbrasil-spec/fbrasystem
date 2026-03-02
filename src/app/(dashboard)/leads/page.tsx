@@ -5,7 +5,9 @@ import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ReportToolbar, getDensityClasses, type ColumnDef, type Density, type FilterDef } from "@/components/ui/report-toolbar";
 import { useToast } from "@/components/ui/toast";
-import { Plus, Search, X } from "lucide-react";
+import { Button, SearchInput } from "@/components/ui";
+import { Plus, X, ArrowRight } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 type LeadTemperature = "frio" | "morno" | "quente";
 type LeadStage = "novo" | "contato_feito" | "proposta_enviada" | "negociacao" | "ganho";
@@ -92,6 +94,7 @@ function getTodayFormatted(): string {
 }
 
 export default function LeadsPage() {
+    const router = useRouter();
     const { toast } = useToast();
     const [leads, setLeads] = useState<Lead[]>(INITIAL_LEADS);
     const [search, setSearch] = useState("");
@@ -197,13 +200,9 @@ export default function LeadsPage() {
                     title="CRM & Leads"
                     subtitle="Gerenciamento do pipeline de potenciais clientes e controle de propostas."
                     actions={
-                        <button
-                            onClick={handleOpenForm}
-                            className="flex items-center justify-center gap-2 rounded-md bg-pf-blue px-3 py-1.5 font-sans text-xs font-bold text-white transition-all hover:bg-blue-700 active:scale-95 shadow-sm"
-                        >
-                            <Plus className="h-4 w-4" aria-hidden="true" />
+                        <Button icon={<Plus className="h-4 w-4" />} onClick={handleOpenForm}>
                             Novo Lead
-                        </button>
+                        </Button>
                     }
                 />
 
@@ -277,18 +276,12 @@ export default function LeadsPage() {
                             </div>
                         </div>
                         <div className="flex items-center justify-end gap-2 mt-4">
-                            <button
-                                onClick={handleCloseForm}
-                                className="rounded-md border border-pf-grey/20 px-4 py-2 text-xs font-bold text-pf-black transition-all hover:bg-pf-grey/10"
-                            >
+                            <Button variant="secondary" onClick={handleCloseForm}>
                                 Cancelar
-                            </button>
-                            <button
-                                onClick={handleAddLead}
-                                className="rounded-md bg-pf-blue px-4 py-2 text-xs font-bold text-white transition-all hover:bg-blue-700 active:scale-95"
-                            >
+                            </Button>
+                            <Button onClick={handleAddLead}>
                                 Adicionar Lead
-                            </button>
+                            </Button>
                         </div>
                     </div>
                 )}
@@ -322,17 +315,13 @@ export default function LeadsPage() {
             <div className="sticky top-0 z-20 bg-[#F4F5F7] py-2 space-y-2">
                 <div className="flex items-center justify-between">
                     <span className="text-sm font-bold text-pf-black">Pipeline de Leads</span>
-                    <div className="relative">
-                        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-pf-grey" aria-hidden="true" />
-                        <input
-                            type="search"
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                            placeholder="Buscar lead ou empresa..."
-                            aria-label="Buscar lead ou empresa"
-                            className="h-8 w-48 rounded-md border border-pf-grey/20 pl-10 pr-4 text-sm font-sans outline-none focus:border-pf-blue focus:ring-1 focus:ring-pf-blue bg-white"
-                        />
-                    </div>
+                    <SearchInput
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        onClear={() => setSearch("")}
+                        placeholder="Buscar lead ou empresa..."
+                        aria-label="Buscar lead ou empresa"
+                    />
                 </div>
 
                 <ReportToolbar
@@ -396,9 +385,22 @@ export default function LeadsPage() {
                                     </td>}
                                     {visibleColumns.includes("acao") && <td className={`${densityClasses.cell} text-right`}>
                                         {lead.stage === "ganho" ? (
-                                            <span className="text-[10px] font-bold uppercase tracking-widest text-green-600">
-                                                Concluido
-                                            </span>
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    const params = new URLSearchParams({
+                                                        fromLead: lead.id,
+                                                        client: lead.companyName || lead.contactName,
+                                                        contact: lead.contactName,
+                                                        ...(lead.value ? { value: lead.value } : {}),
+                                                    });
+                                                    router.push(`/propostas/nova?${params.toString()}`);
+                                                }}
+                                                className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-pf-blue hover:text-pf-black transition-colors"
+                                            >
+                                                Gerar Proposta
+                                                <ArrowRight className="h-3 w-3" />
+                                            </button>
                                         ) : (
                                             <button
                                                 onClick={(e) => {

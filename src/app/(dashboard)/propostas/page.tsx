@@ -6,7 +6,8 @@ import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useToast } from "@/components/ui/toast";
 import { ReportToolbar, getDensityClasses, type ColumnDef, type Density, type FilterDef } from "@/components/ui/report-toolbar";
-import { Plus, FileEdit, Download, CheckCircle, Clock, Search } from "lucide-react";
+import { Button, SearchInput } from "@/components/ui";
+import { Plus, FileEdit, Download, CheckCircle, Clock, ArrowRight } from "lucide-react";
 
 type ProposalStatus = "Em Revisão" | "Aprovada";
 
@@ -166,6 +167,16 @@ export default function ProposalsPage() {
         toast("PDF gerado com sucesso", "success");
     };
 
+    const handleConvertToCaso = (proposal: Proposal) => {
+        const params = new URLSearchParams({
+            fromProposal: proposal.id,
+            client: proposal.client,
+            title: proposal.title,
+            value: proposal.value,
+        });
+        router.push(`/casos/novo?${params.toString()}`);
+    };
+
     const filtered = proposals.filter((p) =>
         (search === "" || p.title.toLowerCase().includes(search.toLowerCase()) || p.client.toLowerCase().includes(search.toLowerCase())) &&
         (statusFilter.length === 0 || statusFilter.includes(p.status))
@@ -179,13 +190,9 @@ export default function ProposalsPage() {
                     title="Propostas de Honorários"
                     subtitle="Gerenciamento e geração de propostas comerciais no padrão do escritório."
                     actions={
-                        <button
-                            onClick={() => router.push("/propostas/nova")}
-                            className="flex items-center justify-center gap-2 rounded-md bg-pf-blue px-3 py-1.5 font-sans text-xs font-bold text-white transition-all hover:bg-blue-700 active:scale-95 shadow-sm"
-                        >
-                            <Plus className="h-4 w-4" aria-hidden="true" />
+                        <Button icon={<Plus className="h-4 w-4" />} onClick={() => router.push("/propostas/nova")}>
                             Nova Proposta
-                        </button>
+                        </Button>
                     }
                 />
             </div>
@@ -194,17 +201,13 @@ export default function ProposalsPage() {
             <div className="sticky top-0 z-20 bg-[#F4F5F7] py-2 space-y-2">
                 <div className="flex items-center justify-between">
                     <span className="text-sm font-bold text-pf-black">Todas as Propostas</span>
-                    <div className="relative">
-                        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-pf-grey" aria-hidden="true" />
-                        <input
-                            type="search"
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                            placeholder="Buscar proposta..."
-                            aria-label="Buscar proposta"
-                            className="h-8 w-48 rounded-md border border-pf-grey/20 pl-10 pr-4 text-sm font-sans outline-none focus:border-pf-blue focus:ring-1 focus:ring-pf-blue bg-white"
-                        />
-                    </div>
+                    <SearchInput
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        onClear={() => setSearch("")}
+                        placeholder="Buscar proposta..."
+                        aria-label="Buscar proposta"
+                    />
                 </div>
 
                 <ReportToolbar
@@ -258,20 +261,17 @@ export default function ProposalsPage() {
                                     </td>}
                                     {visibleColumns.includes("acoes") && <td className={`${densityClasses.cell} text-right`}>
                                         <div className="flex items-center justify-end gap-1">
-                                            <button
-                                                aria-label="Editar proposta"
-                                                onClick={() => handleEdit(proposal.id)}
-                                                className="p-2 text-pf-grey hover:text-pf-blue transition-colors"
-                                            >
+                                            {proposal.status === "Aprovada" && (
+                                                <Button variant="ghost" size="sm" aria-label="Converter em Caso" onClick={() => handleConvertToCaso(proposal)} className="text-green-600 hover:text-green-800">
+                                                    <ArrowRight className="h-4 w-4" />
+                                                </Button>
+                                            )}
+                                            <Button variant="ghost" size="sm" aria-label="Editar proposta" onClick={() => handleEdit(proposal.id)}>
                                                 <FileEdit className="h-4 w-4" />
-                                            </button>
-                                            <button
-                                                aria-label="Baixar PDF"
-                                                onClick={() => handleDownloadPdf(proposal)}
-                                                className="p-2 text-pf-grey hover:text-pf-blue transition-colors"
-                                            >
+                                            </Button>
+                                            <Button variant="ghost" size="sm" aria-label="Baixar PDF" onClick={() => handleDownloadPdf(proposal)}>
                                                 <Download className="h-4 w-4" />
-                                            </button>
+                                            </Button>
                                         </div>
                                     </td>}
                                 </tr>

@@ -17,10 +17,16 @@ export default async function DashboardLayout({
         <ToastWrapper>
             <MobileMenuProvider>
                 <div className="min-h-screen bg-background">
+                    <a
+                        href="#main-content"
+                        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[100] focus:rounded-md focus:bg-pf-blue focus:px-4 focus:py-2 focus:text-xs focus:font-bold focus:text-white"
+                    >
+                        Pular para o conteudo
+                    </a>
                     <MobileOverlay />
                     <Sidebar userRole={userRole} userName={userName} />
                     <Header />
-                    <main className="lg:ml-20 pt-12 h-screen overflow-hidden">
+                    <main id="main-content" className="lg:ml-20 pt-12 h-screen overflow-hidden">
                         <div className="h-full overflow-y-auto p-4 sm:p-6 lg:p-8">
                             {children}
                         </div>

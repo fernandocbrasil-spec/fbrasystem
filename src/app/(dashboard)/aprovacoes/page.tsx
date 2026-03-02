@@ -7,7 +7,8 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { ReportToolbar, getDensityClasses, type ColumnDef, type Density, type FilterDef } from "@/components/ui/report-toolbar";
 import { ApprovalDialog } from "@/components/approval/approval-dialog";
 import { MOCK_PAYABLES, MOCK_RECEIVABLES, MOCK_TIME_ENTRIES, MOCK_PROPOSALS, type MockPayable, type MockReceivable, type MockTimeEntry } from "@/lib/mock-data";
-import { ShieldCheck, CreditCard, Receipt, Clock, FileText, ChevronRight, Check, X, Search } from "lucide-react";
+import { SearchInput } from "@/components/ui";
+import { ShieldCheck, CreditCard, Receipt, Clock, FileText, ChevronRight, Check, X } from "lucide-react";
 
 // ======================== HELPERS ========================
 
@@ -222,17 +223,14 @@ export default function AprovacoesConsolidadasPage() {
             <div className="sticky top-0 z-20 bg-[#F4F5F7] py-2 space-y-2">
                 <div className="flex items-center justify-between">
                     <span className="text-sm font-bold text-pf-black">Pendente de Aprovacao</span>
-                    <div className="relative">
-                        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-pf-grey" aria-hidden="true" />
-                        <input
-                            type="search"
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                            placeholder="Buscar fornecedor, cliente ou colaborador..."
-                            aria-label="Buscar"
-                            className="h-9 w-72 rounded-md border border-pf-grey/20 pl-10 pr-4 text-sm font-sans outline-none focus:border-pf-blue focus:ring-1 focus:ring-pf-blue bg-white"
-                        />
-                    </div>
+                    <SearchInput
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        onClear={() => setSearch("")}
+                        placeholder="Buscar fornecedor, cliente ou colaborador..."
+                        aria-label="Buscar"
+                        className="w-72"
+                    />
                 </div>
                 <ReportToolbar
                     pageId="aprovacoes"
