@@ -1,21 +1,22 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { PageHeader } from "@/components/ui/page-header";
-import { FilterDropdown } from "@/components/ui/filter-dropdown";
+import { EmptyState } from "@/components/ui/empty-state";
 import { ReportToolbar, getDensityClasses, type ColumnDef, type Density, type FilterDef } from "@/components/ui/report-toolbar";
-import { Receipt, Calendar, CheckSquare, Search } from "lucide-react";
+import { useToast } from "@/components/ui/toast";
+import { Receipt, Calendar, CheckSquare, Search, Loader2 } from "lucide-react";
 
 const TABLE_COLUMNS: ColumnDef[] = [
-    { key: "mes", label: "Mês Ref.", defaultVisible: true },
+    { key: "mes", label: "Mes Ref.", defaultVisible: true },
     { key: "cliente", label: "Cliente / Caso", defaultVisible: true },
     { key: "modalidade", label: "Modalidade", defaultVisible: true },
     { key: "valor", label: "Valor Bruto", defaultVisible: true },
     { key: "status", label: "Status", defaultVisible: true },
-    { key: "acao", label: "Ação", defaultVisible: true },
+    { key: "acao", label: "Acao", defaultVisible: true },
 ];
 
-type InvoiceStatus = "Pendente Aprovação" | "Faturado" | "Rascunho";
+type InvoiceStatus = "Pendente Aprovacao" | "Faturado" | "Rascunho";
 
 type Invoice = {
     id: string;
@@ -27,14 +28,14 @@ type Invoice = {
     type: string;
 };
 
-const invoices: Invoice[] = [
-    { id: "1", month: "02/2026", client: "Grupo Sequoia", case: "Assessoria Contábil e Fiscal", value: "R$ 13.045,51", status: "Pendente Aprovação", type: "Fixo Mensal" },
-    { id: "2", month: "02/2026", client: "TechCorp BR", case: "Planejamento Tributário 2026", value: "R$ 45.000,00", status: "Faturado", type: "Êxito / Única" },
-    { id: "3", month: "02/2026", client: "Indústria Metal SP", case: "Consultoria Trabalhista HR", value: "R$ 8.540,00", status: "Rascunho", type: "Horas (Time & Material)" },
+const INITIAL_INVOICES: Invoice[] = [
+    { id: "1", month: "02/2026", client: "Grupo Sequoia", case: "Assessoria Contabil e Fiscal", value: "R$ 13.045,51", status: "Pendente Aprovacao", type: "Fixo Mensal" },
+    { id: "2", month: "02/2026", client: "TechCorp BR", case: "Planejamento Tributario 2026", value: "R$ 45.000,00", status: "Faturado", type: "Exito / Unica" },
+    { id: "3", month: "02/2026", client: "Industria Metal SP", case: "Consultoria Trabalhista HR", value: "R$ 8.540,00", status: "Rascunho", type: "Horas (Time & Material)" },
 ];
 
 const statusStyle: Record<InvoiceStatus, string> = {
-    "Pendente Aprovação": "bg-orange-100 text-orange-700",
+    "Pendente Aprovacao": "bg-orange-100 text-orange-700",
     Faturado: "bg-green-100 text-green-700",
     Rascunho: "bg-pf-grey/10 text-pf-grey",
 };
@@ -42,16 +43,33 @@ const statusStyle: Record<InvoiceStatus, string> = {
 const FILTER_DEFS: FilterDef[] = [
     { key: "modalidade", label: "Modalidade", options: [
         { value: "Fixo Mensal", label: "Fixo Mensal" },
-        { value: "Êxito / Única", label: "Êxito / Única" },
+        { value: "Exito / Unica", label: "Exito / Unica" },
         { value: "Horas (Time & Material)", label: "Horas" },
     ]},
 ];
 
+const AVAILABLE_PERIODS = ["02/2026", "01/2026", "03/2026"];
+const PERIOD_LABELS = ["Fev/2026", "Jan/2026", "Mar/2026"];
+
+// Mock clients for the engine-generated invoice
+const ENGINE_MOCK_CLIENTS = [
+    { client: "Nexus Participacoes", case: "Consultoria Societaria", value: "R$ 18.500,00", type: "Fixo Mensal" },
+    { client: "Grupo Beta S.A.", case: "Assessoria Tributaria", value: "R$ 7.200,00", type: "Fixo Mensal" },
+    { client: "Solar Energia LTDA", case: "Compliance Fiscal Q1", value: "R$ 12.800,00", type: "Horas (Time & Material)" },
+];
+
 export default function BillingPage() {
+    const { toast } = useToast();
+    const [invoices, setInvoices] = useState<Invoice[]>([...INITIAL_INVOICES]);
     const [search, setSearch] = useState("");
     const [typeFilter, setTypeFilter] = useState<string[]>([]);
     const [visibleColumns, setVisibleColumns] = useState<string[]>(["mes", "cliente", "modalidade", "valor", "status", "acao"]);
     const [density, setDensity] = useState<Density>("compact");
+    const [periodIndex, setPeriodIndex] = useState(0);
+    const [engineLoading, setEngineLoading] = useState(false);
+    const [engineMockIndex, setEngineMockIndex] = useState(0);
+
+    const densityClasses = getDensityClasses(density);
 
     const handleApplyFilters = (filters: Record<string, string[]>) => {
         setTypeFilter(filters.modalidade || []);
@@ -62,19 +80,106 @@ export default function BillingPage() {
         (typeFilter.length === 0 || typeFilter.includes(inv.type))
     );
 
+    // KPIs computed from state
+    const totalFaturar = invoices.reduce((acc, inv) => {
+        const num = parseFloat(inv.value.replace("R$ ", "").replace(/\./g, "").replace(",", "."));
+        return acc + (isNaN(num) ? 0 : num);
+    }, 0);
+
+    const preFaturasAbertas = invoices.filter((inv) => inv.status !== "Faturado").length;
+
+    const ticketMedio = invoices.length > 0 ? totalFaturar / invoices.length : 0;
+
+    const formatBRL = (v: number) => {
+        return `R$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+    };
+
+    // Handlers
+    const handleCyclePeriod = () => {
+        setPeriodIndex((prev) => (prev + 1) % AVAILABLE_PERIODS.length);
+    };
+
+    const handleRunEngine = useCallback(() => {
+        if (engineLoading) return;
+        setEngineLoading(true);
+
+        setTimeout(() => {
+            const mockData = ENGINE_MOCK_CLIENTS[engineMockIndex % ENGINE_MOCK_CLIENTS.length];
+            const newInvoice: Invoice = {
+                id: `eng-${Date.now()}`,
+                month: AVAILABLE_PERIODS[periodIndex],
+                client: mockData.client,
+                case: mockData.case,
+                value: mockData.value,
+                status: "Rascunho",
+                type: mockData.type,
+            };
+            setInvoices((prev) => [...prev, newInvoice]);
+            setEngineMockIndex((prev) => prev + 1);
+            setEngineLoading(false);
+            toast(`Pre-fatura gerada para ${mockData.client}.`);
+        }, 1500);
+    }, [engineLoading, engineMockIndex, periodIndex, toast]);
+
+    const handleDownloadNFSE = (inv: Invoice) => {
+        const content = [
+            `NFS-e Simulada — PF Advogados`,
+            `========================================`,
+            `ID: ${inv.id}`,
+            `Cliente: ${inv.client}`,
+            `Caso: ${inv.case}`,
+            `Competencia: ${inv.month}`,
+            `Valor: ${inv.value}`,
+            `Modalidade: ${inv.type}`,
+            `Status: ${inv.status}`,
+            `Data emissao: ${new Date().toLocaleDateString("pt-BR")}`,
+            `========================================`,
+            `Documento gerado para fins de demonstracao.`,
+        ].join("\n");
+
+        const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `nfse-${inv.id}.txt`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        toast("NFS-e baixada com sucesso.");
+    };
+
+    const handleRevisar = (invId: string) => {
+        setInvoices((prev) =>
+            prev.map((inv) => {
+                if (inv.id === invId && (inv.status === "Rascunho" || inv.status === "Pendente Aprovacao")) {
+                    return { ...inv, status: "Faturado" as InvoiceStatus };
+                }
+                return inv;
+            })
+        );
+        toast("Pre-fatura aprovada e marcada como Faturado.");
+    };
+
     return (
         <div>
-            <div className="sticky top-0 z-20 bg-[#F4F5F7] space-y-2 pb-3">
+            {/* PageHeader + KPIs scroll with content */}
+            <div className="space-y-2 pb-3">
                 <PageHeader
-                    title="Faturamento (Pré-Faturas)"
-                    subtitle="Módulo de geração e aprovação de cobranças baseadas nos contratos (Plans) ou Horas."
+                    title="Faturamento (Pre-Faturas)"
+                    subtitle="Modulo de geracao e aprovacao de cobrancas baseadas nos contratos (Plans) ou Horas."
                     actions={
                         <button
-                            onClick={() => window.alert("Engine de Cálculo Acionada: Varrendo Drizzle DB em busca de Planos Fixos Ativos e Tabela de Horas.")}
-                            className="flex items-center justify-center gap-2 rounded-md bg-pf-black px-4 py-1.5 font-sans text-xs font-bold text-white transition-all hover:bg-gray-800 active:scale-95 shadow-sm"
+                            onClick={handleRunEngine}
+                            disabled={engineLoading}
+                            className="flex items-center justify-center gap-2 rounded-md bg-pf-black px-3 py-1.5 font-sans text-xs font-bold text-white transition-all hover:bg-gray-800 active:scale-95 shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
                         >
-                            <Receipt className="h-4 w-4" aria-hidden="true" />
-                            Rodar Engine de Fechamento (Fev/26)
+                            {engineLoading ? (
+                                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                            ) : (
+                                <Receipt className="h-4 w-4" aria-hidden="true" />
+                            )}
+                            {engineLoading ? "Processando..." : `Rodar Engine de Fechamento (${PERIOD_LABELS[periodIndex].slice(0, 6)})`}
                         </button>
                     }
                 />
@@ -83,28 +188,30 @@ export default function BillingPage() {
                 <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
                     <div className="bg-white border border-pf-grey/20 rounded border-l-[3px] border-l-pf-blue p-2.5">
                         <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-pf-grey">Total a Faturar</p>
-                        <p className="font-sans text-xl font-bold text-pf-black mt-1 leading-none">R$ 66.585</p>
-                        <p className="text-[9px] text-green-600 font-semibold mt-1">+12% vs mês anterior</p>
+                        <p className="font-sans text-xl font-bold text-pf-black mt-1 leading-none">{formatBRL(totalFaturar)}</p>
+                        <p className="text-[9px] text-green-600 font-semibold mt-1">+12% vs mes anterior</p>
                     </div>
                     <div className="bg-white border border-pf-grey/20 rounded p-2.5">
                         <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-pf-grey">Horas Apontadas</p>
                         <p className="font-sans text-xl font-bold text-pf-black mt-1 leading-none">124h 30m</p>
-                        <p className="text-[9px] text-orange-500 font-semibold mt-1">18h pendentes aprovação</p>
+                        <p className="text-[9px] text-orange-500 font-semibold mt-1">18h pendentes aprovacao</p>
                     </div>
                     <div className="bg-white border border-pf-grey/20 rounded p-2.5">
-                        <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-pf-grey">Pré-Faturas Abertas</p>
-                        <p className="font-sans text-xl font-bold text-pf-blue mt-1 leading-none">4</p>
-                        <p className="text-[9px] text-pf-grey mt-1">Fevereiro/2026</p>
+                        <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-pf-grey">Pre-Faturas Abertas</p>
+                        <p className="font-sans text-xl font-bold text-pf-blue mt-1 leading-none">{preFaturasAbertas}</p>
+                        <p className="text-[9px] text-pf-grey mt-1">{PERIOD_LABELS[periodIndex]}</p>
                     </div>
                     <div className="bg-white border border-pf-grey/20 rounded p-2.5">
-                        <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-pf-grey">Ticket Médio</p>
-                        <p className="font-sans text-xl font-bold text-pf-black mt-1 leading-none">R$ 22.195</p>
+                        <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-pf-grey">Ticket Medio</p>
+                        <p className="font-sans text-xl font-bold text-pf-black mt-1 leading-none">{formatBRL(ticketMedio)}</p>
                     </div>
                 </div>
+            </div>
 
-                {/* Toolbar */}
+            {/* Sticky: only search + ReportToolbar */}
+            <div className="sticky top-0 z-20 bg-[#F4F5F7] py-2 space-y-2">
                 <div className="flex items-center justify-between">
-                    <span className="text-sm font-bold text-pf-black">Pré-Faturas do Período</span>
+                    <span className="text-sm font-bold text-pf-black">Pre-Faturas do Periodo</span>
                     <div className="flex gap-2">
                         <div className="relative">
                             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-pf-grey" aria-hidden="true" />
@@ -118,25 +225,14 @@ export default function BillingPage() {
                             />
                         </div>
                         <button
-                            onClick={() => window.alert("Modal Calendário: Filtrar relatórios por outra competência.")}
+                            onClick={handleCyclePeriod}
                             className="flex h-8 items-center gap-2 rounded-md border border-pf-grey/20 bg-white px-4 text-sm font-semibold text-pf-black hover:bg-pf-blue/5 hover:text-pf-blue hover:border-pf-blue transition-colors"
                         >
-                            <Calendar className="h-4 w-4" aria-hidden="true" /> Fev/2026
+                            <Calendar className="h-4 w-4" aria-hidden="true" /> {PERIOD_LABELS[periodIndex]}
                         </button>
-                        <FilterDropdown
-                            label="Modalidade"
-                            options={[
-                                { value: "Fixo Mensal", label: "Fixo Mensal" },
-                                { value: "Êxito / Única", label: "Êxito / Única" },
-                                { value: "Horas (Time & Material)", label: "Horas" },
-                            ]}
-                            selected={typeFilter}
-                            onChange={setTypeFilter}
-                        />
                     </div>
                 </div>
 
-                {/* Report Toolbar */}
                 <ReportToolbar
                     pageId="faturamento"
                     columns={TABLE_COLUMNS}
@@ -150,54 +246,64 @@ export default function BillingPage() {
                 />
             </div>
 
-            {/* Lista agrupada */}
             <div className="overflow-x-auto">
                 <table className="w-full text-left font-sans text-sm">
                     <thead>
                         <tr className="text-pf-grey border-b border-pf-grey/20">
-                            {visibleColumns.includes("mes") && <th className={`${getDensityClasses(density).cell} ${getDensityClasses(density).text} pb-2 font-semibold uppercase tracking-wider`}>Mês Ref.</th>}
-                            {visibleColumns.includes("cliente") && <th className={`${getDensityClasses(density).cell} ${getDensityClasses(density).text} pb-2 font-semibold uppercase tracking-wider`}>Cliente / Caso</th>}
-                            {visibleColumns.includes("modalidade") && <th className={`${getDensityClasses(density).cell} ${getDensityClasses(density).text} pb-2 font-semibold uppercase tracking-wider`}>Modalidade</th>}
-                            {visibleColumns.includes("valor") && <th className={`${getDensityClasses(density).cell} ${getDensityClasses(density).text} pb-2 font-semibold uppercase tracking-wider text-right`}>Valor Bruto</th>}
-                            {visibleColumns.includes("status") && <th className={`${getDensityClasses(density).cell} ${getDensityClasses(density).text} pb-2 font-semibold uppercase tracking-wider`}>Status</th>}
-                            {visibleColumns.includes("acao") && <th className={`${getDensityClasses(density).cell} ${getDensityClasses(density).text} pb-2 font-semibold uppercase tracking-wider text-right`}>Ação</th>}
+                            {visibleColumns.includes("mes") && <th className={`${densityClasses.cell} ${densityClasses.text} pb-2 font-semibold uppercase tracking-wider`}>Mes Ref.</th>}
+                            {visibleColumns.includes("cliente") && <th className={`${densityClasses.cell} ${densityClasses.text} pb-2 font-semibold uppercase tracking-wider`}>Cliente / Caso</th>}
+                            {visibleColumns.includes("modalidade") && <th className={`${densityClasses.cell} ${densityClasses.text} pb-2 font-semibold uppercase tracking-wider`}>Modalidade</th>}
+                            {visibleColumns.includes("valor") && <th className={`${densityClasses.cell} ${densityClasses.text} pb-2 font-semibold uppercase tracking-wider text-right`}>Valor Bruto</th>}
+                            {visibleColumns.includes("status") && <th className={`${densityClasses.cell} ${densityClasses.text} pb-2 font-semibold uppercase tracking-wider`}>Status</th>}
+                            {visibleColumns.includes("acao") && <th className={`${densityClasses.cell} ${densityClasses.text} pb-2 font-semibold uppercase tracking-wider text-right`}>Acao</th>}
                         </tr>
                     </thead>
                     <tbody>
-                        {filtered.map((inv) => (
-                            <tr key={inv.id} className="border-b border-pf-grey/15 hover:bg-white transition-colors cursor-pointer">
-                                {visibleColumns.includes("mes") && <td className={`${getDensityClasses(density).cell} text-pf-grey font-mono ${getDensityClasses(density).text}`}>{inv.month}</td>}
-                                {visibleColumns.includes("cliente") && <td className={`${getDensityClasses(density).cell}`}>
-                                    <p className={`font-bold text-pf-black ${getDensityClasses(density).text}`}>{inv.client}</p>
-                                    <p className={`${getDensityClasses(density).text} text-pf-grey truncate max-w-[200px] mt-0.5`}>{inv.case}</p>
-                                </td>}
-                                {visibleColumns.includes("modalidade") && <td className={`${getDensityClasses(density).cell} text-pf-grey ${getDensityClasses(density).text} uppercase font-bold`}>{inv.type}</td>}
-                                {visibleColumns.includes("valor") && <td className={`${getDensityClasses(density).cell} ${getDensityClasses(density).text} text-right font-bold text-pf-black font-mono`}>{inv.value}</td>}
-                                {visibleColumns.includes("status") && <td className={`${getDensityClasses(density).cell}`}>
-                                    <span className={`inline-flex items-center rounded-sm px-2 py-1 text-[10px] font-bold uppercase tracking-widest ${statusStyle[inv.status]}`}>{inv.status}</span>
-                                </td>}
-                                {visibleColumns.includes("acao") && <td className={`${getDensityClasses(density).cell} text-right`}>
-                                    {inv.status === "Faturado" ? (
-                                        <button
-                                            onClick={(e) => { e.stopPropagation(); window.alert("Integração pendente (Fase 6): Conexão com API NFS-e SP para baixar o PDF simulado da Nota Fiscal."); }}
-                                            aria-label="Baixar NFS-e"
-                                            className="rounded p-2 text-pf-blue hover:bg-pf-blue/10 transition-all font-bold text-xs"
-                                        >
-                                            NFS-E
-                                        </button>
-                                    ) : (
-                                        <button
-                                            onClick={(e) => { e.stopPropagation(); window.alert(`Abrindo rascunho de pré-fatura para revisar horas do cliente ${inv.client}.`); }}
-                                            aria-label={`Revisar pré-fatura ${inv.client}`}
-                                            className="flex items-center gap-1 rounded bg-pf-blue/10 px-2 py-1.5 text-xs font-bold text-pf-blue hover:bg-pf-blue hover:text-white transition-all"
-                                        >
-                                            <CheckSquare className="h-3 w-3" aria-hidden="true" />
-                                            Revisar
-                                        </button>
-                                    )}
-                                </td>}
+                        {filtered.length === 0 ? (
+                            <tr>
+                                <td colSpan={visibleColumns.length}>
+                                    <EmptyState
+                                        title="Nenhuma pre-fatura encontrada"
+                                        message="Limpe os filtros ou rode a engine de fechamento."
+                                    />
+                                </td>
                             </tr>
-                        ))}
+                        ) : (
+                            filtered.map((inv) => (
+                                <tr key={inv.id} className="border-b border-pf-grey/15 hover:bg-white transition-colors cursor-pointer">
+                                    {visibleColumns.includes("mes") && <td className={`${densityClasses.cell} text-pf-grey font-mono ${densityClasses.text}`}>{inv.month}</td>}
+                                    {visibleColumns.includes("cliente") && <td className={`${densityClasses.cell}`}>
+                                        <p className={`font-bold text-pf-black ${densityClasses.text}`}>{inv.client}</p>
+                                        <p className={`${densityClasses.text} text-pf-grey truncate max-w-[200px] mt-0.5`}>{inv.case}</p>
+                                    </td>}
+                                    {visibleColumns.includes("modalidade") && <td className={`${densityClasses.cell} text-pf-grey ${densityClasses.text} uppercase font-bold`}>{inv.type}</td>}
+                                    {visibleColumns.includes("valor") && <td className={`${densityClasses.cell} ${densityClasses.text} text-right font-bold text-pf-black font-mono`}>{inv.value}</td>}
+                                    {visibleColumns.includes("status") && <td className={`${densityClasses.cell}`}>
+                                        <span className={`inline-flex items-center rounded-sm px-2 py-1 text-[10px] font-bold uppercase tracking-widest ${statusStyle[inv.status]}`}>{inv.status}</span>
+                                    </td>}
+                                    {visibleColumns.includes("acao") && <td className={`${densityClasses.cell} text-right`}>
+                                        {inv.status === "Faturado" ? (
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); handleDownloadNFSE(inv); }}
+                                                aria-label="Baixar NFS-e"
+                                                className="rounded p-2 text-pf-blue hover:bg-pf-blue/10 transition-all font-bold text-xs"
+                                            >
+                                                NFS-E
+                                            </button>
+                                        ) : (
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); handleRevisar(inv.id); }}
+                                                aria-label={`Revisar pre-fatura ${inv.client}`}
+                                                className="flex items-center gap-1 rounded bg-pf-blue/10 px-2 py-1.5 text-xs font-bold text-pf-blue hover:bg-pf-blue hover:text-white transition-all"
+                                            >
+                                                <CheckSquare className="h-3 w-3" aria-hidden="true" />
+                                                Revisar
+                                            </button>
+                                        )}
+                                    </td>}
+                                </tr>
+                            ))
+                        )}
                     </tbody>
                 </table>
             </div>

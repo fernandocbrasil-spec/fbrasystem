@@ -167,6 +167,11 @@ export const timeEntries = pgTable("time_entries", {
     hourlyRate: decimal("hourly_rate", { precision: 10, scale: 2 }),
     isBillable: boolean("is_billable").default(true),
     preInvoiceId: uuid("pre_invoice_id").references(() => preInvoices.id),
+    approvalStatus: varchar("approval_status", { length: 50 }).default("pendente"),
+    submittedAt: timestamp("submitted_at", { withTimezone: true }).defaultNow(),
+    approvedBy: uuid("approved_by").references(() => users.id),
+    approvedAt: timestamp("approved_at", { withTimezone: true }),
+    rejectionComment: text("rejection_comment"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 });
@@ -241,6 +246,12 @@ export const arTitles = pgTable("ar_titles", {
     paidValue: decimal("paid_value", { precision: 12, scale: 2 }),
     status: varchar("status", { length: 50 }).default("open"),
     bankTransactionId: uuid("bank_transaction_id").references(() => bankTransactions.id),
+    approvalStatus: varchar("approval_status", { length: 50 }).default("pendente"),
+    requestedAction: varchar("requested_action", { length: 50 }),
+    requestedBy: uuid("requested_by").references(() => users.id),
+    approvedBy: uuid("approved_by").references(() => users.id),
+    approvedAt: timestamp("approved_at", { withTimezone: true }),
+    rejectionComment: text("rejection_comment"),
     notes: text("notes"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
@@ -286,6 +297,27 @@ export const cashflowDaily = pgTable("cashflow_daily", {
     projectedReceipts: decimal("projected_receipts", { precision: 14, scale: 2 }).default("0"),
     projectedPayments: decimal("projected_payments", { precision: 14, scale: 2 }).default("0"),
     notes: text("notes"),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+});
+
+// --- CONTAS A PAGAR ---
+
+export const accountsPayable = pgTable("accounts_payable", {
+    id: uuid("id").primaryKey().defaultRandom(),
+    supplierId: varchar("supplier_id", { length: 255 }),
+    supplierName: varchar("supplier_name", { length: 255 }).notNull(),
+    category: varchar("category", { length: 100 }),
+    value: decimal("value", { precision: 12, scale: 2 }).notNull(),
+    dueDate: date("due_date").notNull(),
+    paidDate: date("paid_date"),
+    status: varchar("status", { length: 50 }).default("pending"),
+    approvalStatus: varchar("approval_status", { length: 50 }).default("pendente"),
+    submittedBy: uuid("submitted_by").references(() => users.id),
+    approvedBy: uuid("approved_by").references(() => users.id),
+    approvedAt: timestamp("approved_at", { withTimezone: true }),
+    rejectionComment: text("rejection_comment"),
+    notes: text("notes"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 });
 
@@ -375,11 +407,187 @@ export const rules = pgTable("rules", {
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 });
 
+// --- RELATIONS ---
+
+export const usersRelations = relations(users, ({ one, many }) => ({
+    role: one(roles, { fields: [users.roleId], references: [roles.id] }),
+    leads: many(leads),
+    timeEntries: many(timeEntries),
+    cases: many(cases),
+}));
+
+export const rolesRelations = relations(roles, ({ many }) => ({
+    users: many(users),
+}));
+
+export const leadsRelations = relations(leads, ({ one, many }) => ({
+    responsible: one(users, { fields: [leads.responsibleId], references: [users.id] }),
+    meetings: many(meetings),
+    proposals: many(proposals),
+}));
+
+export const meetingsRelations = relations(meetings, ({ one }) => ({
+    lead: one(leads, { fields: [meetings.leadId], references: [leads.id] }),
+    case_: one(cases, { fields: [meetings.caseId], references: [cases.id] }),
+}));
+
+export const clientsRelations = relations(clients, ({ one, many }) => ({
+    lead: one(leads, { fields: [clients.leadId], references: [leads.id] }),
+    cases: many(cases),
+    proposals: many(proposals),
+    billingPlans: many(billingPlans),
+    invoices: many(invoices),
+    arTitles: many(arTitles),
+}));
+
+export const proposalsRelations = relations(proposals, ({ one, many }) => ({
+    lead: one(leads, { fields: [proposals.leadId], references: [leads.id] }),
+    client: one(clients, { fields: [proposals.clientId], references: [clients.id] }),
+    createdByUser: one(users, { fields: [proposals.createdBy], references: [users.id] }),
+    approvedByUser: one(users, { fields: [proposals.approvedBy], references: [users.id] }),
+    versions: many(proposalVersions),
+}));
+
+export const proposalVersionsRelations = relations(proposalVersions, ({ one }) => ({
+    proposal: one(proposals, { fields: [proposalVersions.proposalId], references: [proposals.id] }),
+    changedByUser: one(users, { fields: [proposalVersions.changedBy], references: [users.id] }),
+}));
+
+export const casesRelations = relations(cases, ({ one, many }) => ({
+    client: one(clients, { fields: [cases.clientId], references: [clients.id] }),
+    responsible: one(users, { fields: [cases.responsibleId], references: [users.id] }),
+    proposal: one(proposals, { fields: [cases.proposalId], references: [proposals.id] }),
+    members: many(caseMembers),
+    tasks: many(tasks),
+    timeEntries: many(timeEntries),
+    billingPlans: many(billingPlans),
+    preInvoices: many(preInvoices),
+}));
+
+export const caseMembersRelations = relations(caseMembers, ({ one }) => ({
+    case_: one(cases, { fields: [caseMembers.caseId], references: [cases.id] }),
+    user: one(users, { fields: [caseMembers.userId], references: [users.id] }),
+}));
+
+export const tasksRelations = relations(tasks, ({ one }) => ({
+    case_: one(cases, { fields: [tasks.caseId], references: [cases.id] }),
+    assignee: one(users, { fields: [tasks.assigneeId], references: [users.id] }),
+}));
+
+export const timeEntriesRelations = relations(timeEntries, ({ one }) => ({
+    user: one(users, { fields: [timeEntries.userId], references: [users.id] }),
+    case_: one(cases, { fields: [timeEntries.caseId], references: [cases.id] }),
+    task: one(tasks, { fields: [timeEntries.taskId], references: [tasks.id] }),
+    preInvoice: one(preInvoices, { fields: [timeEntries.preInvoiceId], references: [preInvoices.id] }),
+    approvedByUser: one(users, { fields: [timeEntries.approvedBy], references: [users.id] }),
+}));
+
+export const billingPlansRelations = relations(billingPlans, ({ one }) => ({
+    case_: one(cases, { fields: [billingPlans.caseId], references: [cases.id] }),
+    client: one(clients, { fields: [billingPlans.clientId], references: [clients.id] }),
+}));
+
+export const preInvoicesRelations = relations(preInvoices, ({ one }) => ({
+    case_: one(cases, { fields: [preInvoices.caseId], references: [cases.id] }),
+    client: one(clients, { fields: [preInvoices.clientId], references: [clients.id] }),
+    billingPlan: one(billingPlans, { fields: [preInvoices.billingPlanId], references: [billingPlans.id] }),
+    approvedByUser: one(users, { fields: [preInvoices.approvedBy], references: [users.id] }),
+}));
+
+export const invoicesRelations = relations(invoices, ({ one }) => ({
+    preInvoice: one(preInvoices, { fields: [invoices.preInvoiceId], references: [preInvoices.id] }),
+    client: one(clients, { fields: [invoices.clientId], references: [clients.id] }),
+    case_: one(cases, { fields: [invoices.caseId], references: [cases.id] }),
+}));
+
+export const arTitlesRelations = relations(arTitles, ({ one }) => ({
+    invoice: one(invoices, { fields: [arTitles.invoiceId], references: [invoices.id] }),
+    client: one(clients, { fields: [arTitles.clientId], references: [clients.id] }),
+    case_: one(cases, { fields: [arTitles.caseId], references: [cases.id] }),
+    bankTransaction: one(bankTransactions, { fields: [arTitles.bankTransactionId], references: [bankTransactions.id] }),
+    requestedByUser: one(users, { fields: [arTitles.requestedBy], references: [users.id] }),
+    approvedByUser: one(users, { fields: [arTitles.approvedBy], references: [users.id] }),
+}));
+
+export const accountsPayableRelations = relations(accountsPayable, ({ one }) => ({
+    submittedByUser: one(users, { fields: [accountsPayable.submittedBy], references: [users.id] }),
+    approvedByUser: one(users, { fields: [accountsPayable.approvedBy], references: [users.id] }),
+}));
+
+export const bankTransactionsRelations = relations(bankTransactions, ({ many }) => ({
+    reconciliationMatches: many(reconciliationMatches),
+}));
+
+export const reconciliationMatchesRelations = relations(reconciliationMatches, ({ one }) => ({
+    bankTransaction: one(bankTransactions, { fields: [reconciliationMatches.bankTransactionId], references: [bankTransactions.id] }),
+    arTitle: one(arTitles, { fields: [reconciliationMatches.arTitleId], references: [arTitles.id] }),
+    matchedByUser: one(users, { fields: [reconciliationMatches.matchedBy], references: [users.id] }),
+}));
+
+export const partnersRelations = relations(partners, ({ one, many }) => ({
+    user: one(users, { fields: [partners.userId], references: [users.id] }),
+    ledger: many(partnerLedger),
+}));
+
+export const partnerLedgerRelations = relations(partnerLedger, ({ one }) => ({
+    partner: one(partners, { fields: [partnerLedger.partnerId], references: [partners.id] }),
+    approvedByUser: one(users, { fields: [partnerLedger.approvedBy], references: [users.id] }),
+}));
+
+export const distributionsRelations = relations(distributions, ({ one }) => ({
+    approvedByUser: one(users, { fields: [distributions.approvedBy], references: [users.id] }),
+}));
+
+export const driveFoldersRelations = relations(driveFolders, ({ one }) => ({
+    case_: one(cases, { fields: [driveFolders.caseId], references: [cases.id] }),
+    client: one(clients, { fields: [driveFolders.clientId], references: [clients.id] }),
+}));
+
+export const auditLogsRelations = relations(auditLogs, ({ one }) => ({
+    user: one(users, { fields: [auditLogs.userId], references: [users.id] }),
+}));
+
+export const rulesRelations = relations(rules, ({ one }) => ({
+    updatedByUser: one(users, { fields: [rules.updatedBy], references: [users.id] }),
+}));
+
+export const exceptionQueueRelations = relations(exceptionQueue, ({ one }) => ({
+    resolvedByUser: one(users, { fields: [exceptionQueue.resolvedBy], references: [users.id] }),
+}));
+
 // --- TYPES ---
 
 export type User = InferSelectModel<typeof users>;
 export type NewUser = InferInsertModel<typeof users>;
+export type Role = InferSelectModel<typeof roles>;
 export type Lead = InferSelectModel<typeof leads>;
+export type NewLead = InferInsertModel<typeof leads>;
+export type Meeting = InferSelectModel<typeof meetings>;
 export type Client = InferSelectModel<typeof clients>;
+export type NewClient = InferInsertModel<typeof clients>;
+export type Proposal = InferSelectModel<typeof proposals>;
+export type NewProposal = InferInsertModel<typeof proposals>;
+export type ProposalVersion = InferSelectModel<typeof proposalVersions>;
 export type Case = InferSelectModel<typeof cases>;
+export type NewCase = InferInsertModel<typeof cases>;
+export type CaseMember = InferSelectModel<typeof caseMembers>;
 export type Task = InferSelectModel<typeof tasks>;
+export type NewTask = InferInsertModel<typeof tasks>;
+export type TimeEntry = InferSelectModel<typeof timeEntries>;
+export type NewTimeEntry = InferInsertModel<typeof timeEntries>;
+export type BillingPlan = InferSelectModel<typeof billingPlans>;
+export type PreInvoice = InferSelectModel<typeof preInvoices>;
+export type Invoice = InferSelectModel<typeof invoices>;
+export type ArTitle = InferSelectModel<typeof arTitles>;
+export type BankTransaction = InferSelectModel<typeof bankTransactions>;
+export type ReconciliationMatch = InferSelectModel<typeof reconciliationMatches>;
+export type CashflowDaily = InferSelectModel<typeof cashflowDaily>;
+export type Partner = InferSelectModel<typeof partners>;
+export type PartnerLedger = InferSelectModel<typeof partnerLedger>;
+export type Distribution = InferSelectModel<typeof distributions>;
+export type AuditLog = InferSelectModel<typeof auditLogs>;
+export type ExceptionQueueItem = InferSelectModel<typeof exceptionQueue>;
+export type DriveFolder = InferSelectModel<typeof driveFolders>;
+export type AccountPayable = InferSelectModel<typeof accountsPayable>;
+export type NewAccountPayable = InferInsertModel<typeof accountsPayable>;
+export type Rule = InferSelectModel<typeof rules>;

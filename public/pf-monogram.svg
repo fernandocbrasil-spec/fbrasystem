@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" fill="none">
+  <!-- PF Monogram — Peixoto Feiteiro Advogados -->
+  <!-- P bowl (enclosed top) + F crossbar (below) sharing vertical stem -->
+  <g fill="currentColor">
+    <!-- Shared vertical stem -->
+    <rect x="8" y="4" width="3.5" height="32" />
+    <!-- P: top horizontal -->
+    <rect x="11.5" y="4" width="16" height="3.5" />
+    <!-- P: right vertical (bowl wall) -->
+    <rect x="24" y="4" width="3.5" height="15" />
+    <!-- P: bottom horizontal (closes bowl) -->
+    <rect x="11.5" y="15.5" width="16" height="3.5" />
+    <!-- F: lower crossbar -->
+    <rect x="11.5" y="27" width="12" height="3.5" />
+  </g>
+</svg>

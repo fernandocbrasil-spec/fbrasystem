@@ -1,26 +1,154 @@
 "use client"
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { PageHeader } from "@/components/ui/page-header";
-import { Clock, CheckSquare, FileText, User, ArrowLeft, Plus, MoreHorizontal } from "lucide-react";
+import { useToast } from "@/components/ui/toast";
+import { Clock, CheckSquare, FileText, User, ArrowLeft, Plus, X } from "lucide-react";
 import Link from "next/link";
+
+type Priority = "Alta" | "Media" | "Baixa";
+
+type Task = {
+    id: string;
+    title: string;
+    priority: Priority;
+    column: "todo" | "in_progress" | "done";
+    dueDate?: string;
+    assignee?: string;
+};
+
+type TimeEntry = {
+    id: string;
+    date: string;
+    professional: string;
+    description: string;
+    time: string;
+};
+
+const PRIORITY_STYLES: Record<Priority, string> = {
+    Alta: "bg-red-100 text-red-700",
+    Media: "bg-orange-100 text-orange-700",
+    Baixa: "bg-blue-100 text-blue-700",
+};
+
+const INITIAL_TASKS: Task[] = [
+    { id: "t-1", title: "Revisao documentos IRPJ Marco", priority: "Alta", column: "todo", dueDate: "05/03" },
+    { id: "t-2", title: "Agendar call checkpoint mensal", priority: "Baixa", column: "todo" },
+    { id: "t-3", title: "Elaboracao planilhas Intercompany", priority: "Media", column: "in_progress", assignee: "CO" },
+];
+
+const INITIAL_TIME_ENTRIES: TimeEntry[] = [
+    { id: "te-1", date: "25/02/2026", professional: "Carlos Oliveira", description: "Setup do projeto e coleta de balancetes mensais.", time: "02:30" },
+];
+
+function parseTimeToMinutes(t: string): number {
+    const parts = t.split(":");
+    if (parts.length !== 2) return 0;
+    const h = parseInt(parts[0], 10) || 0;
+    const m = parseInt(parts[1], 10) || 0;
+    return h * 60 + m;
+}
+
+function formatMinutes(total: number): string {
+    const h = Math.floor(total / 60).toString().padStart(2, "0");
+    const m = (total % 60).toString().padStart(2, "0");
+    return `${h}:${m}`;
+}
 
 export default function CaseDetailsPage({ params }: { params: { id: string } }) {
     const [activeTab, setActiveTab] = useState("tarefas");
+    const { toast } = useToast();
+
+    // Tasks state
+    const [tasks, setTasks] = useState<Task[]>(INITIAL_TASKS);
+    const [showNewTask, setShowNewTask] = useState(false);
+    const [newTaskTitle, setNewTaskTitle] = useState("");
+    const [newTaskPriority, setNewTaskPriority] = useState<Priority>("Media");
+
+    // Time entries state
+    const [timeEntries, setTimeEntries] = useState<TimeEntry[]>(INITIAL_TIME_ENTRIES);
+    const profRef = useRef<HTMLSelectElement>(null);
+    const dateRef = useRef<HTMLInputElement>(null);
+    const timeRef = useRef<HTMLInputElement>(null);
+    const descRef = useRef<HTMLInputElement>(null);
 
     const caseData = {
         number: "CA-2026-001",
         client: "Grupo Sequoia",
-        title: "Assessoria Contábil e Fiscal Contínua",
+        title: "Assessoria Contabil e Fiscal Continua",
         status: "Ativo",
     };
 
     const TABS = [
-        { id: "visao_geral", label: "Visão Geral", icon: <FileText className="h-4 w-4" /> },
+        { id: "visao_geral", label: "Visao Geral", icon: <FileText className="h-4 w-4" /> },
         { id: "tarefas", label: "Tarefas (Kanban)", icon: <CheckSquare className="h-4 w-4" /> },
         { id: "horas", label: "Planilha de Horas", icon: <Clock className="h-4 w-4" /> },
         { id: "equipe", label: "Equipe do Caso", icon: <User className="h-4 w-4" /> },
     ];
+
+    // Derived counts
+    const todoTasks = tasks.filter((t) => t.column === "todo");
+    const inProgressTasks = tasks.filter((t) => t.column === "in_progress");
+    const doneTasks = tasks.filter((t) => t.column === "done");
+
+    const totalMinutes = timeEntries.reduce((acc, e) => acc + parseTimeToMinutes(e.time), 0);
+
+    // Handlers
+    const handleAddTask = () => {
+        if (!newTaskTitle.trim()) {
+            toast("Informe o titulo da tarefa.", "warning");
+            return;
+        }
+        const newTask: Task = {
+            id: `t-${Date.now()}`,
+            title: newTaskTitle.trim(),
+            priority: newTaskPriority,
+            column: "todo",
+        };
+        setTasks((prev) => [...prev, newTask]);
+        setNewTaskTitle("");
+        setNewTaskPriority("Media");
+        setShowNewTask(false);
+        toast("Tarefa adicionada com sucesso.");
+    };
+
+    const handleLancarHoras = () => {
+        const prof = profRef.current?.value || "";
+        const date = dateRef.current?.value || "";
+        const time = timeRef.current?.value || "";
+        const desc = descRef.current?.value || "";
+
+        if (!date || !time || !desc.trim()) {
+            toast("Preencha todos os campos obrigatorios.", "warning");
+            return;
+        }
+
+        const timeRegex = /^\d{1,2}:\d{2}$/;
+        if (!timeRegex.test(time)) {
+            toast("Formato de tempo invalido. Use hh:mm.", "warning");
+            return;
+        }
+
+        // Format date from yyyy-mm-dd to dd/mm/yyyy
+        const [y, m, d] = date.split("-");
+        const formattedDate = `${d}/${m}/${y}`;
+
+        const entry: TimeEntry = {
+            id: `te-${Date.now()}`,
+            date: formattedDate,
+            professional: prof,
+            description: desc.trim(),
+            time,
+        };
+        setTimeEntries((prev) => [...prev, entry]);
+
+        // Reset form
+        if (dateRef.current) dateRef.current.value = "";
+        if (timeRef.current) timeRef.current.value = "";
+        if (descRef.current) descRef.current.value = "";
+
+        toast("Horas lancadas com sucesso.");
+    };
 
     return (
         <div className="space-y-6">
@@ -62,57 +190,107 @@ export default function CaseDetailsPage({ params }: { params: { id: string } }) 
                 {activeTab === "tarefas" && (
                     <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
                         <div className="flex justify-end">
-                            <button className="flex items-center justify-center gap-2 rounded border border-pf-grey/30 bg-white px-3 py-1.5 text-xs font-bold text-pf-grey hover:border-pf-blue hover:text-pf-blue transition-colors shadow-sm">
-                                <Plus className="h-3.5 w-3.5" />
-                                Nova Tarefa
+                            <button
+                                onClick={() => setShowNewTask((v) => !v)}
+                                className="flex items-center justify-center gap-2 rounded border border-pf-grey/30 bg-white px-3 py-1.5 text-xs font-bold text-pf-grey hover:border-pf-blue hover:text-pf-blue transition-colors shadow-sm"
+                            >
+                                {showNewTask ? <X className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
+                                {showNewTask ? "Cancelar" : "Nova Tarefa"}
                             </button>
                         </div>
+
+                        {/* Inline new task form */}
+                        {showNewTask && (
+                            <div className="flex items-end gap-3 rounded-lg border border-pf-blue/30 bg-white p-4 shadow-sm animate-in fade-in slide-in-from-top-2 duration-200">
+                                <div className="flex-1 space-y-1.5">
+                                    <label className="text-[10px] font-bold uppercase tracking-[0.1em] text-pf-grey">Titulo</label>
+                                    <input
+                                        type="text"
+                                        value={newTaskTitle}
+                                        onChange={(e) => setNewTaskTitle(e.target.value)}
+                                        placeholder="Descreva a tarefa..."
+                                        className="w-full border border-pf-grey/20 bg-pf-grey/5 p-3 text-sm font-sans text-pf-black outline-none focus:border-pf-blue focus:ring-1 focus:ring-pf-blue transition-all rounded"
+                                        onKeyDown={(e) => { if (e.key === "Enter") handleAddTask(); }}
+                                    />
+                                </div>
+                                <div className="w-36 space-y-1.5">
+                                    <label className="text-[10px] font-bold uppercase tracking-[0.1em] text-pf-grey">Prioridade</label>
+                                    <select
+                                        value={newTaskPriority}
+                                        onChange={(e) => setNewTaskPriority(e.target.value as Priority)}
+                                        className="w-full border border-pf-grey/20 bg-pf-grey/5 p-3 text-sm font-sans text-pf-black outline-none focus:border-pf-blue focus:ring-1 focus:ring-pf-blue transition-all rounded"
+                                    >
+                                        <option value="Alta">Alta</option>
+                                        <option value="Media">Media</option>
+                                        <option value="Baixa">Baixa</option>
+                                    </select>
+                                </div>
+                                <button
+                                    onClick={handleAddTask}
+                                    className="rounded bg-pf-blue px-5 py-3 text-sm font-bold text-white hover:bg-pf-black transition-colors"
+                                >
+                                    Adicionar
+                                </button>
+                            </div>
+                        )}
 
                         <div className="flex h-[calc(100vh-20rem)] w-full gap-6 overflow-x-auto pb-4">
                             {/* TODO */}
                             <div className="flex min-w-[320px] max-w-[320px] flex-col rounded-lg bg-gray-50/50 border border-pf-grey/20 p-4">
                                 <div className="mb-4 flex items-center justify-between">
-                                    <h3 className="font-sans text-sm font-bold uppercase tracking-wider text-pf-black">A Fazer <span className="text-pf-grey ml-1 text-xs font-normal">2</span></h3>
+                                    <h3 className="font-sans text-sm font-bold uppercase tracking-wider text-pf-black">A Fazer <span className="text-pf-grey ml-1 text-xs font-normal">{todoTasks.length}</span></h3>
                                 </div>
                                 <div className="flex flex-col gap-3">
-                                    <div className="cursor-pointer rounded-lg border border-pf-grey/10 bg-white p-4 shadow-sm hover:border-pf-blue/40">
-                                        <p className="font-sans text-sm font-semibold text-pf-black mb-2">Revisão documentos IRPJ Marco</p>
-                                        <div className="flex items-center justify-between mt-3 text-xs text-pf-grey">
-                                            <div className="rounded bg-red-100 px-2 py-0.5 font-bold text-red-700">Alta</div>
-                                            <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> 05/03</span>
+                                    {todoTasks.map((task) => (
+                                        <div key={task.id} className="cursor-pointer rounded-lg border border-pf-grey/10 bg-white p-4 shadow-sm hover:border-pf-blue/40">
+                                            <p className="font-sans text-sm font-semibold text-pf-black mb-2">{task.title}</p>
+                                            <div className="flex items-center justify-between mt-3 text-xs text-pf-grey">
+                                                <div className={`rounded px-2 py-0.5 font-bold ${PRIORITY_STYLES[task.priority]}`}>{task.priority}</div>
+                                                {task.dueDate && (
+                                                    <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> {task.dueDate}</span>
+                                                )}
+                                            </div>
                                         </div>
-                                    </div>
-                                    <div className="cursor-pointer rounded-lg border border-pf-grey/10 bg-white p-4 shadow-sm hover:border-pf-blue/40">
-                                        <p className="font-sans text-sm font-semibold text-pf-black mb-2">Agendar call checkpoint mensal</p>
-                                        <div className="flex items-center justify-between mt-3 text-xs text-pf-grey">
-                                            <div className="rounded bg-blue-100 px-2 py-0.5 font-bold text-blue-700">Baixa</div>
-                                        </div>
-                                    </div>
+                                    ))}
                                 </div>
                             </div>
 
                             {/* IN PROGRESS */}
                             <div className="flex min-w-[320px] max-w-[320px] flex-col rounded-lg bg-blue-50/50 border border-pf-blue/20 p-4">
                                 <div className="mb-4 flex items-center justify-between">
-                                    <h3 className="font-sans text-sm font-bold uppercase tracking-wider text-pf-blue">Em Andamento <span className="text-pf-blue/70 ml-1 text-xs font-normal">1</span></h3>
+                                    <h3 className="font-sans text-sm font-bold uppercase tracking-wider text-pf-blue">Em Andamento <span className="text-pf-blue/70 ml-1 text-xs font-normal">{inProgressTasks.length}</span></h3>
                                 </div>
                                 <div className="flex flex-col gap-3">
-                                    <div className="cursor-pointer rounded-lg border border-pf-blue/30 bg-white p-4 shadow-sm ring-1 ring-pf-blue/10">
-                                        <p className="font-sans text-sm font-semibold text-pf-black mb-2">Elaboração planilhas Intercompany</p>
-                                        <div className="flex items-center justify-between mt-3 text-xs text-pf-grey">
-                                            <div className="rounded bg-orange-100 px-2 py-0.5 font-bold text-orange-700">Média</div>
-                                            <div className="flex -space-x-1">
-                                                <div className="flex h-6 w-6 items-center justify-center rounded-full bg-pf-black text-white text-[10px] ring-2 ring-white">CO</div>
+                                    {inProgressTasks.map((task) => (
+                                        <div key={task.id} className="cursor-pointer rounded-lg border border-pf-blue/30 bg-white p-4 shadow-sm ring-1 ring-pf-blue/10">
+                                            <p className="font-sans text-sm font-semibold text-pf-black mb-2">{task.title}</p>
+                                            <div className="flex items-center justify-between mt-3 text-xs text-pf-grey">
+                                                <div className={`rounded px-2 py-0.5 font-bold ${PRIORITY_STYLES[task.priority]}`}>{task.priority}</div>
+                                                {task.assignee && (
+                                                    <div className="flex -space-x-1">
+                                                        <div className="flex h-6 w-6 items-center justify-center rounded-full bg-pf-black text-white text-[10px] ring-2 ring-white">{task.assignee}</div>
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
-                                    </div>
+                                    ))}
                                 </div>
                             </div>
 
                             {/* DONE */}
                             <div className="flex min-w-[320px] max-w-[320px] flex-col rounded-lg bg-green-50/50 border border-green-200/50 p-4">
                                 <div className="mb-4 flex items-center justify-between">
-                                    <h3 className="font-sans text-sm font-bold uppercase tracking-wider text-green-800">Concluído <span className="text-green-700/70 ml-1 text-xs font-normal">0</span></h3>
+                                    <h3 className="font-sans text-sm font-bold uppercase tracking-wider text-green-800">Concluido <span className="text-green-700/70 ml-1 text-xs font-normal">{doneTasks.length}</span></h3>
+                                </div>
+                                <div className="flex flex-col gap-3">
+                                    {doneTasks.map((task) => (
+                                        <div key={task.id} className="cursor-pointer rounded-lg border border-green-200/50 bg-white p-4 shadow-sm opacity-70">
+                                            <p className="font-sans text-sm font-semibold text-pf-black mb-2 line-through">{task.title}</p>
+                                            <div className="flex items-center justify-between mt-3 text-xs text-pf-grey">
+                                                <div className={`rounded px-2 py-0.5 font-bold ${PRIORITY_STYLES[task.priority]}`}>{task.priority}</div>
+                                            </div>
+                                        </div>
+                                    ))}
                                 </div>
                             </div>
                         </div>
@@ -123,30 +301,35 @@ export default function CaseDetailsPage({ params }: { params: { id: string } }) 
                 {activeTab === "horas" && (
                     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
                         <div className="rounded-lg border border-pf-grey/10 bg-white p-6 shadow-sm">
-                            <h3 className="font-sans text-lg font-bold tracking-tight text-pf-blue mb-6">Lançamento de Horas</h3>
+                            <h3 className="font-sans text-lg font-bold tracking-tight text-pf-blue mb-6">Lancamento de Horas</h3>
 
                             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6 p-4 bg-pf-grey/5 rounded border border-pf-grey/10 items-end">
                                 <div className="space-y-2">
                                     <label className="text-xs font-bold uppercase text-pf-grey">Profissional</label>
-                                    <select className="w-full rounded-md border border-pf-grey/30 p-2 text-sm focus:border-pf-blue outline-none">
+                                    <select ref={profRef} className="w-full rounded-md border border-pf-grey/30 p-2 text-sm focus:border-pf-blue outline-none">
                                         <option>Carlos Oliveira</option>
-                                        <option>José Rafael Feiteiro</option>
+                                        <option>Jose Rafael Feiteiro</option>
                                     </select>
                                 </div>
                                 <div className="space-y-2">
                                     <label className="text-xs font-bold uppercase text-pf-grey">Data</label>
-                                    <input type="date" className="w-full rounded-md border border-pf-grey/30 p-2 text-sm focus:border-pf-blue outline-none" />
+                                    <input ref={dateRef} type="date" className="w-full rounded-md border border-pf-grey/30 p-2 text-sm focus:border-pf-blue outline-none" />
                                 </div>
                                 <div className="space-y-2">
                                     <label className="text-xs font-bold uppercase text-pf-grey">Tempo (hh:mm)</label>
-                                    <input type="text" placeholder="ex: 01:30" className="w-full rounded-md border border-pf-grey/30 p-2 text-sm focus:border-pf-blue outline-none" />
+                                    <input ref={timeRef} type="text" placeholder="ex: 01:30" className="w-full rounded-md border border-pf-grey/30 p-2 text-sm focus:border-pf-blue outline-none" />
                                 </div>
                                 <div>
-                                    <button className="w-full rounded bg-pf-blue p-2 font-bold text-white hover:bg-pf-black transition-colors">Lançar</button>
+                                    <button
+                                        onClick={handleLancarHoras}
+                                        className="w-full rounded bg-pf-blue p-2 font-bold text-white hover:bg-pf-black transition-colors"
+                                    >
+                                        Lancar
+                                    </button>
                                 </div>
                                 <div className="space-y-2 md:col-span-4 mt-2">
-                                    <label className="text-xs font-bold uppercase text-pf-grey">Descrição da Atividade</label>
-                                    <input type="text" placeholder="Qual tarefa foi executada?" className="w-full rounded-md border border-pf-grey/30 p-2 text-sm focus:border-pf-blue outline-none" />
+                                    <label className="text-xs font-bold uppercase text-pf-grey">Descricao da Atividade</label>
+                                    <input ref={descRef} type="text" placeholder="Qual tarefa foi executada?" className="w-full rounded-md border border-pf-grey/30 p-2 text-sm focus:border-pf-blue outline-none" />
                                 </div>
                             </div>
 
@@ -156,22 +339,24 @@ export default function CaseDetailsPage({ params }: { params: { id: string } }) 
                                         <tr className="border-b border-pf-grey/10 text-pf-grey text-xs uppercase tracking-wider">
                                             <th className="pb-2 font-semibold">Data</th>
                                             <th className="pb-2 font-semibold">Profissional</th>
-                                            <th className="pb-2 font-semibold">Descrição</th>
+                                            <th className="pb-2 font-semibold">Descricao</th>
                                             <th className="pb-2 font-semibold text-right">Tempo</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-pf-grey/10">
-                                        <tr className="hover:bg-pf-blue/5">
-                                            <td className="py-3">25/02/2026</td>
-                                            <td className="py-3 font-semibold text-pf-black">Carlos Oliveira</td>
-                                            <td className="py-3 text-pf-grey">Setup do projeto e coleta de balancetes mensais.</td>
-                                            <td className="py-3 text-right font-mono font-bold text-pf-blue">02:30</td>
-                                        </tr>
+                                        {timeEntries.map((entry) => (
+                                            <tr key={entry.id} className="hover:bg-pf-blue/5">
+                                                <td className="py-3">{entry.date}</td>
+                                                <td className="py-3 font-semibold text-pf-black">{entry.professional}</td>
+                                                <td className="py-3 text-pf-grey">{entry.description}</td>
+                                                <td className="py-3 text-right font-mono font-bold text-pf-blue">{entry.time}</td>
+                                            </tr>
+                                        ))}
                                     </tbody>
                                     <tfoot>
                                         <tr className="bg-pf-grey/5">
                                             <td colSpan={3} className="py-3 text-right font-bold text-pf-black">TOTAL APONTADO:</td>
-                                            <td className="py-3 text-right font-mono font-bold text-pf-blue">02:30</td>
+                                            <td className="py-3 text-right font-mono font-bold text-pf-blue">{formatMinutes(totalMinutes)}</td>
                                         </tr>
                                     </tfoot>
                                 </table>

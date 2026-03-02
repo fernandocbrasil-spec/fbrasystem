@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import {
     Columns3,
     SlidersHorizontal,
@@ -9,10 +9,9 @@ import {
     Save,
     FileSpreadsheet,
     Check,
-    X,
-    ChevronDown,
     Trash2,
 } from "lucide-react";
+import { useClickOutside } from "@/hooks/use-click-outside";
 
 // ======================== TYPES ========================
 
@@ -59,18 +58,6 @@ export type ReportToolbarProps = {
 };
 
 // ======================== HELPERS ========================
-
-function useClickOutside(ref: React.RefObject<HTMLElement | null>, handler: () => void) {
-    useEffect(() => {
-        function handleClick(e: MouseEvent) {
-            if (ref.current && !ref.current.contains(e.target as Node)) {
-                handler();
-            }
-        }
-        document.addEventListener("mousedown", handleClick);
-        return () => document.removeEventListener("mousedown", handleClick);
-    }, [ref, handler]);
-}
 
 function getStorageKey(pageId: string) {
     return `pf-views-${pageId}`;

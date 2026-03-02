@@ -7,31 +7,32 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             name: "Mock Login",
             credentials: {},
             async authorize() {
-                // Mock de usuário para teste do sistema
+                // Mock de usuario para teste do sistema
+                // TODO: substituir por Azure AD provider em producao
                 return {
                     id: "123",
-                    name: "Sócio Diretor",
-                    email: "socio@pfadvogados.com.br",
+                    name: "Fernando Brasil",
+                    email: "fernando@pfadvogados.com.br",
                     role: "socio",
-                    azureId: "mock-azure-id"
+                    azureId: "mock-azure-id",
                 };
-            }
+            },
         }),
     ],
     callbacks: {
         async jwt({ token, user }) {
             if (user) {
-                token.azureId = (user as any).azureId;
-                token.role = (user as any).role;
+                token.azureId = user.azureId;
+                token.role = user.role;
                 token.userId = user.id;
             }
             return token;
         },
         async session({ session, token }) {
             if (session.user) {
-                (session.user as any).id = token.userId as string;
-                (session.user as any).role = token.role as string;
-                (session.user as any).azureId = token.azureId as string;
+                session.user.id = token.userId ?? "";
+                session.user.role = token.role ?? "";
+                session.user.azureId = token.azureId ?? "";
             }
             return session;
         },

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import Link from "next/link";
 import { Plus, ChevronRight, Search } from "lucide-react";
 import { FilterDropdown } from "@/components/ui/filter-dropdown";
 
@@ -17,7 +18,7 @@ type Lead = {
     date: string;
 };
 
-const LEADS: Lead[] = [
+const INITIAL_LEADS: Lead[] = [
     { id: "1", companyName: "TechCorp BR", contactName: "Carlos Silva", temperature: "morno", status: "novo", date: "01/03/2026" },
     { id: "2", contactName: "Ana Paula Consultoria", temperature: "frio", status: "novo", date: "28/02/2026" },
     { id: "3", companyName: "Logística ABC", contactName: "Marcos Torres", temperature: "quente", status: "contato_feito", date: "27/02/2026" },
@@ -47,9 +48,23 @@ const tempLabel: Record<LeadTemperature, string> = {
 };
 
 export function KanbanBoard() {
+    const [leads, setLeads] = useState<Lead[]>(INITIAL_LEADS);
     const [openGroups, setOpenGroups] = useState<Set<LeadStatus>>(new Set(STAGE_ORDER));
     const [search, setSearch] = useState("");
     const [tempFilter, setTempFilter] = useState<string[]>([]);
+
+    const advanceStage = (id: string) => {
+        setLeads((prev) =>
+            prev.map((l) => {
+                if (l.id !== id) return l;
+                const idx = STAGE_ORDER.indexOf(l.status);
+                if (idx < STAGE_ORDER.length - 1) {
+                    return { ...l, status: STAGE_ORDER[idx + 1] };
+                }
+                return l;
+            })
+        );
+    };
 
     const toggleGroup = (status: LeadStatus) => {
         setOpenGroups((prev) => {
@@ -63,7 +78,7 @@ export function KanbanBoard() {
     const grouped = useMemo(() =>
         STAGE_ORDER.map((status) => ({
             status,
-            items: LEADS.filter((l) =>
+            items: leads.filter((l) =>
                 l.status === status &&
                 (search === "" ||
                     l.contactName.toLowerCase().includes(search.toLowerCase()) ||
@@ -71,7 +86,7 @@ export function KanbanBoard() {
                 (tempFilter.length === 0 || tempFilter.includes(l.temperature))
             ),
         })),
-        [search, tempFilter]
+        [leads, search, tempFilter]
     );
 
     return (
@@ -144,11 +159,12 @@ export function KanbanBoard() {
                                         <tr
                                             key={lead.id}
                                             className="border-b border-pf-grey/15 hover:bg-white transition-colors cursor-pointer"
-                                            onClick={() => window.alert(`Abrindo ficha do lead: ${lead.contactName}`)}
                                         >
                                             <td className="py-3.5">
-                                                <p className="font-bold text-pf-black text-sm">{lead.companyName || "Pessoa Física"}</p>
-                                                <p className="text-xs text-pf-grey mt-0.5">{lead.contactName}</p>
+                                                <Link href={`/leads`} className="block">
+                                                    <p className="font-bold text-pf-black text-sm hover:text-pf-blue transition-colors">{lead.companyName || "Pessoa Física"}</p>
+                                                    <p className="text-xs text-pf-grey mt-0.5">{lead.contactName}</p>
+                                                </Link>
                                             </td>
                                             <td className="py-3.5">
                                                 <span className="flex items-center gap-2 text-xs text-pf-grey">
@@ -161,12 +177,16 @@ export function KanbanBoard() {
                                             </td>
                                             <td className="py-3.5 font-mono text-xs text-pf-grey">{lead.date}</td>
                                             <td className="py-3.5 text-right">
-                                                <button
-                                                    onClick={(e) => { e.stopPropagation(); window.alert(`Avançar estágio: ${lead.contactName}`); }}
-                                                    className="text-[10px] font-bold uppercase tracking-widest text-pf-blue hover:text-pf-black transition-colors"
-                                                >
-                                                    Avançar
-                                                </button>
+                                                {STAGE_ORDER.indexOf(lead.status) < STAGE_ORDER.length - 1 ? (
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); advanceStage(lead.id); }}
+                                                        className="text-[10px] font-bold uppercase tracking-widest text-pf-blue hover:text-pf-black transition-colors"
+                                                    >
+                                                        Avancar
+                                                    </button>
+                                                ) : (
+                                                    <span className="text-[10px] font-bold uppercase tracking-widest text-green-600">Ganho</span>
+                                                )}
                                             </td>
                                         </tr>
                                     ))}
@@ -185,12 +205,12 @@ export function KanbanBoard() {
             </div>
 
             {/* Add lead inline */}
-            <button
-                onClick={() => window.alert("Modal: Formulário de Novo Lead / Prospect.")}
+            <Link
+                href="/leads"
                 className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-pf-blue hover:text-pf-black transition-colors mt-2"
             >
                 <Plus className="h-3 w-3" aria-hidden="true" /> Adicionar Lead
-            </button>
+            </Link>
         </div>
     );
 }

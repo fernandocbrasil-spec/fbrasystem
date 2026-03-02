@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useCallback } from "react";
 import { Filter, Check } from "lucide-react";
+import { useClickOutside } from "@/hooks/use-click-outside";
 
 type FilterOption = { value: string; label: string };
 
@@ -14,17 +15,12 @@ interface FilterDropdownProps {
 
 export function FilterDropdown({ label, options, selected, onChange }: FilterDropdownProps) {
     const [open, setOpen] = useState(false);
-    const ref = useRef<HTMLDivElement>(null);
+    const [focusedIndex, setFocusedIndex] = useState(-1);
+    const containerRef = useRef<HTMLDivElement>(null);
+    const buttonRef = useRef<HTMLButtonElement>(null);
+    const optionRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
-    useEffect(() => {
-        function handleClickOutside(e: MouseEvent) {
-            if (ref.current && !ref.current.contains(e.target as Node)) {
-                setOpen(false);
-            }
-        }
-        document.addEventListener("mousedown", handleClickOutside);
-        return () => document.removeEventListener("mousedown", handleClickOutside);
-    }, []);
+    useClickOutside(containerRef, useCallback(() => setOpen(false), []));
 
     const toggle = (value: string) => {
         onChange(
@@ -36,10 +32,64 @@ export function FilterDropdown({ label, options, selected, onChange }: FilterDro
 
     const clearAll = () => onChange([]);
 
+    const openDropdown = () => {
+        setOpen(true);
+        setFocusedIndex(0);
+        requestAnimationFrame(() => optionRefs.current[0]?.focus());
+    };
+
+    const closeDropdown = () => {
+        setOpen(false);
+        setFocusedIndex(-1);
+        buttonRef.current?.focus();
+    };
+
+    const handleButtonKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === "ArrowDown" || e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            openDropdown();
+        }
+    };
+
+    const handleOptionKeyDown = (e: React.KeyboardEvent, index: number) => {
+        switch (e.key) {
+            case "Escape":
+                e.preventDefault();
+                closeDropdown();
+                break;
+            case "ArrowDown":
+                e.preventDefault();
+                if (index < options.length - 1) {
+                    setFocusedIndex(index + 1);
+                    optionRefs.current[index + 1]?.focus();
+                }
+                break;
+            case "ArrowUp":
+                e.preventDefault();
+                if (index > 0) {
+                    setFocusedIndex(index - 1);
+                    optionRefs.current[index - 1]?.focus();
+                } else {
+                    closeDropdown();
+                }
+                break;
+            case "Enter":
+            case " ":
+                e.preventDefault();
+                toggle(options[index].value);
+                break;
+        }
+    };
+
     return (
-        <div ref={ref} className="relative">
+        <div ref={containerRef} className="relative">
             <button
-                onClick={() => setOpen(!open)}
+                ref={buttonRef}
+                onClick={() => (open ? closeDropdown() : openDropdown())}
+                onKeyDown={handleButtonKeyDown}
+                aria-haspopup="listbox"
+                aria-expanded={open}
+                aria-label={`Filtrar por ${label}`}
                 className={`flex h-9 items-center gap-2 rounded-md border px-4 text-sm font-semibold transition-colors ${
                     selected.length > 0
                         ? "border-pf-blue bg-pf-blue/5 text-pf-blue"
@@ -56,18 +106,27 @@ export function FilterDropdown({ label, options, selected, onChange }: FilterDro
             </button>
 
             {open && (
-                <div className="absolute right-0 top-full z-50 mt-1 min-w-[200px] rounded-md border border-pf-grey/20 bg-white py-1 shadow-lg">
-                    {options.map((opt) => {
+                <div
+                    role="listbox"
+                    aria-label={label}
+                    aria-multiselectable="true"
+                    className="absolute right-0 top-full z-50 mt-1 min-w-[200px] rounded-md border border-pf-grey/20 bg-white py-1 shadow-lg"
+                >
+                    {options.map((opt, index) => {
                         const isSelected = selected.includes(opt.value);
                         return (
                             <button
                                 key={opt.value}
+                                ref={(el) => { optionRefs.current[index] = el; }}
+                                role="option"
+                                aria-selected={isSelected}
                                 onClick={() => toggle(opt.value)}
+                                onKeyDown={(e) => handleOptionKeyDown(e, index)}
                                 className={`flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm transition-colors ${
                                     isSelected
                                         ? "bg-pf-blue/5 text-pf-blue font-semibold"
                                         : "text-pf-black hover:bg-pf-grey/5"
-                                }`}
+                                } ${focusedIndex === index ? "ring-1 ring-inset ring-pf-blue" : ""}`}
                             >
                                 <span
                                     className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors ${

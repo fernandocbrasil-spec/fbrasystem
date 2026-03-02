@@ -2,23 +2,65 @@ import { signIn } from "@/auth";
 
 export default function LoginPage() {
     return (
-        <div className="flex min-h-screen flex-col items-center justify-center bg-pf-black text-pf-white">
-            <div className="w-full max-w-md space-y-8 p-8 text-center">
-                {/* LOGO PF */}
-                <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-lg border-2 border-pf-blue bg-pf-black-900 shadow-[0_0_20px_rgba(33,46,198,0.3)]">
-                    <span className="font-display text-4xl text-pf-blue">PF</span>
+        <div className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-pf-black text-white">
+
+            {/* Background — B&W architectural (CSS gradient fallback) */}
+            {/* TODO: replace with actual B&W photo at public/login-bg.jpg */}
+            <div className="absolute inset-0 z-0">
+                <div className="absolute inset-0 bg-gradient-to-b from-pf-black/40 via-pf-black/70 to-pf-black" />
+                <div
+                    className="absolute inset-0 opacity-20"
+                    style={{
+                        backgroundImage: `
+                            linear-gradient(180deg, transparent 0%, rgba(0,0,0,0.8) 100%),
+                            repeating-linear-gradient(90deg, rgba(255,255,255,0.03) 0px, rgba(255,255,255,0.03) 1px, transparent 1px, transparent 80px),
+                            repeating-linear-gradient(0deg, rgba(255,255,255,0.02) 0px, rgba(255,255,255,0.02) 1px, transparent 1px, transparent 120px)
+                        `,
+                    }}
+                />
+                {/* Radial highlight from above (simulating sky between buildings) */}
+                <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_0%,rgba(255,255,255,0.08)_0%,transparent_60%)]" />
+            </div>
+
+            {/* Content */}
+            <div className="relative z-10 w-full max-w-lg space-y-10 p-8 text-center">
+
+                {/* Logo — PF Monogram */}
+                <div className="mx-auto flex h-16 w-16 items-center justify-center bg-pf-blue p-3">
+                    <svg viewBox="0 0 40 40" fill="none" className="h-full w-full" aria-label="PF Advogados">
+                        <g fill="white">
+                            <rect x="8" y="4" width="3.5" height="32" />
+                            <rect x="11.5" y="4" width="16" height="3.5" />
+                            <rect x="24" y="4" width="3.5" height="15" />
+                            <rect x="11.5" y="15.5" width="16" height="3.5" />
+                            <rect x="11.5" y="27" width="12" height="3.5" />
+                        </g>
+                    </svg>
                 </div>
 
-                <div className="space-y-2">
-                    <h1 className="font-sans text-2xl font-bold tracking-tighter uppercase">
+                {/* Title */}
+                <div className="space-y-3">
+                    <h1 className="font-display text-3xl tracking-[0.3em] uppercase text-white">
                         Peixoto Feiteiro
                     </h1>
-                    <p className="font-sans text-sm text-pf-grey uppercase tracking-widest">
-                        SISTEMA INTERNO DE GESTÃO
+                    <p className="text-sm tracking-[0.5em] uppercase text-pf-grey">
+                        Advogados
                     </p>
                 </div>
 
-                <div className="mt-12">
+                {/* Partners */}
+                <div className="flex items-center justify-center gap-4 text-[11px] tracking-[0.2em] uppercase text-pf-grey/60">
+                    <span>Peixoto</span>
+                    <span className="text-pf-grey/30">|</span>
+                    <span>Feiteiro</span>
+                    <span className="text-pf-grey/30">|</span>
+                    <span>Machado</span>
+                    <span className="text-pf-grey/30">|</span>
+                    <span>Tarandach</span>
+                </div>
+
+                {/* CTAs */}
+                <div className="flex items-center justify-center gap-4 pt-4">
                     <form
                         action={async () => {
                             "use server";
@@ -27,24 +69,23 @@ export default function LoginPage() {
                     >
                         <button
                             type="submit"
-                            className="flex w-full items-center justify-center gap-3 rounded-md bg-pf-blue px-6 py-4 font-sans font-bold text-white transition-all hover:bg-blue-700 hover:shadow-[0_0_15px_rgba(33,46,198,0.5)] active:scale-95"
+                            className="flex items-center gap-2.5 rounded-full bg-pf-blue px-8 py-3 text-sm font-bold text-white tracking-wide transition-all hover:bg-blue-700 hover:shadow-[0_0_20px_rgba(33,46,198,0.4)] active:scale-95"
                         >
-                            <svg className="h-5 w-5 fill-current" viewBox="0 0 23 23">
+                            <svg className="h-4 w-4 fill-current" viewBox="0 0 23 23">
                                 <path d="M11.46 0H1.89C.85 0 0 .85 0 1.89v9.57h11.46V0zM23 0h-9.57v11.46H23V0zM11.46 11.54H0V21.1c0 1.05.85 1.9 1.89 1.9h9.57V11.54zM23 11.54h-11.54V23H21.1c1.05 0 1.9-.85 1.9-1.89V11.54z" />
                             </svg>
                             Acessar Dashboard
                         </button>
                     </form>
-                    <p className="mt-6 text-xs text-pf-grey italic">
-                        Mock Mode Ativo: Acesso direto ao painel.
-                    </p>
                 </div>
+
+                <p className="text-[10px] text-pf-grey/40 italic">
+                    Mock Mode — Acesso direto ao painel
+                </p>
             </div>
 
-            {/* Background Watermark Pattern */}
-            <div className="fixed inset-0 pointer-events-none opacity-[0.03] flex items-center justify-center overflow-hidden">
-                <span className="font-display text-[60vh] select-none">PF</span>
-            </div>
-        </div >
+            {/* Bottom accent bar */}
+            <div className="absolute bottom-0 left-0 right-0 h-1 bg-pf-blue z-10" />
+        </div>
     );
 }
