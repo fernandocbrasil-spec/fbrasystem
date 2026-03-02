@@ -1,29 +1,38 @@
 "use server";
 
+import { z } from "zod";
+import { auth } from "@/auth";
 import { MOCK_TIME_ENTRIES, type MockTimeEntry } from "@/lib/mock-data";
 
-// TODO: Replace mock data with Drizzle DB queries when database is connected
+const timeEntriesFilterSchema = z.object({
+    search: z.string().max(200).optional(),
+    activityType: z.array(z.string().max(50)).optional(),
+    date: z.string().max(20).optional(),
+}).optional();
 
-export async function getTimeEntries(filters?: {
-    search?: string;
-    activityType?: string[];
-    date?: string;
-}): Promise<MockTimeEntry[]> {
+export async function getTimeEntries(filters?: z.input<typeof timeEntriesFilterSchema>): Promise<MockTimeEntry[]> {
+    const session = await auth();
+    if (!session?.user) return [];
+
+    const parsed = timeEntriesFilterSchema.safeParse(filters);
+    if (!parsed.success) return [];
+    const f = parsed.data;
+
     let results = [...MOCK_TIME_ENTRIES];
 
-    if (filters?.date) {
-        results = results.filter((e) => e.date === filters.date);
+    if (f?.date) {
+        results = results.filter((e) => e.date === f.date);
     }
-    if (filters?.search) {
-        const q = filters.search.toLowerCase();
+    if (f?.search) {
+        const q = f.search.toLowerCase();
         results = results.filter(
             (e) =>
                 e.description.toLowerCase().includes(q) ||
                 e.clientName.toLowerCase().includes(q),
         );
     }
-    if (filters?.activityType?.length) {
-        results = results.filter((e) => filters.activityType!.includes(e.activityType));
+    if (f?.activityType?.length) {
+        results = results.filter((e) => f.activityType!.includes(e.activityType));
     }
 
     return results;

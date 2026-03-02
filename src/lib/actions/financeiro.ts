@@ -1,42 +1,60 @@
 "use server";
 
+import { z } from "zod";
+import { auth } from "@/auth";
 import { MOCK_RECEIVABLES, MOCK_PAYABLES, type MockReceivable, type MockPayable } from "@/lib/mock-data";
 
-// TODO: Replace mock data with Drizzle DB queries when database is connected
+const receivablesFilterSchema = z.object({
+    search: z.string().max(200).optional(),
+    status: z.array(z.string().max(50)).optional(),
+}).optional();
 
-export async function getReceivables(filters?: {
-    search?: string;
-    status?: string[];
-}): Promise<MockReceivable[]> {
+const payablesFilterSchema = z.object({
+    search: z.string().max(200).optional(),
+    categoria: z.array(z.string().max(50)).optional(),
+}).optional();
+
+export async function getReceivables(filters?: z.input<typeof receivablesFilterSchema>): Promise<MockReceivable[]> {
+    const session = await auth();
+    if (!session?.user) return [];
+
+    const parsed = receivablesFilterSchema.safeParse(filters);
+    if (!parsed.success) return [];
+    const f = parsed.data;
+
     let results = [...MOCK_RECEIVABLES];
 
-    if (filters?.search) {
-        const q = filters.search.toLowerCase();
+    if (f?.search) {
+        const q = f.search.toLowerCase();
         results = results.filter(
             (r) =>
                 r.cliente.toLowerCase().includes(q) ||
                 r.descricao.toLowerCase().includes(q),
         );
     }
-    if (filters?.status?.length) {
-        results = results.filter((r) => filters.status!.includes(r.status));
+    if (f?.status?.length) {
+        results = results.filter((r) => f.status!.includes(r.status));
     }
 
     return results;
 }
 
-export async function getPayables(filters?: {
-    search?: string;
-    categoria?: string[];
-}): Promise<MockPayable[]> {
+export async function getPayables(filters?: z.input<typeof payablesFilterSchema>): Promise<MockPayable[]> {
+    const session = await auth();
+    if (!session?.user) return [];
+
+    const parsed = payablesFilterSchema.safeParse(filters);
+    if (!parsed.success) return [];
+    const f = parsed.data;
+
     let results = [...MOCK_PAYABLES];
 
-    if (filters?.search) {
-        const q = filters.search.toLowerCase();
+    if (f?.search) {
+        const q = f.search.toLowerCase();
         results = results.filter((d) => d.fornecedor.toLowerCase().includes(q));
     }
-    if (filters?.categoria?.length) {
-        results = results.filter((d) => filters.categoria!.includes(d.categoria));
+    if (f?.categoria?.length) {
+        results = results.filter((d) => f.categoria!.includes(d.categoria));
     }
 
     return results;

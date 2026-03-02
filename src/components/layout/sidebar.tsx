@@ -45,6 +45,7 @@ import {
     type LucideIcon,
 } from "lucide-react";
 import { signOut } from "next-auth/react";
+import { useMobileMenu } from "./mobile-menu";
 
 // --- Types ---
 
@@ -283,6 +284,7 @@ function getInitials(name: string) {
 export function Sidebar({ userRole, userName = "Usuário" }: { userRole?: string; userName?: string }) {
     const pathname = usePathname();
     const router = useRouter();
+    const { isOpen: mobileMenuOpen, close: closeMobileMenu } = useMobileMenu();
 
     // Which Tier 1 group is active (category name or "favoritos")
     const [activeGroup, setActiveGroup] = useState<string | null>(null);
@@ -366,6 +368,7 @@ export function Sidebar({ userRole, userName = "Usuário" }: { userRole?: string
     const closeSidebar = () => {
         setActiveGroup(null);
         setActiveTier3(null);
+        closeMobileMenu();
     };
 
     // Resolve favorite icons for rendering
@@ -385,7 +388,7 @@ export function Sidebar({ userRole, userName = "Usuário" }: { userRole?: string
     }, [pinned]);
 
     return (
-        <div ref={sidebarRef} className="fixed left-0 top-0 z-50 h-screen flex">
+        <div ref={sidebarRef} className={`fixed left-0 top-0 z-50 h-screen flex transition-transform duration-200 ${mobileMenuOpen ? "translate-x-0" : "-translate-x-full"} lg:translate-x-0`}>
 
             {/* TIER 1 — BARRA DE GRUPOS */}
             <aside className="w-20 bg-pf-black flex flex-col items-center py-5 z-50 relative border-r border-white/5">
