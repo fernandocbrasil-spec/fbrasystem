@@ -469,9 +469,10 @@ export const caseMembersRelations = relations(caseMembers, ({ one }) => ({
     user: one(users, { fields: [caseMembers.userId], references: [users.id] }),
 }));
 
-export const tasksRelations = relations(tasks, ({ one }) => ({
+export const tasksRelations = relations(tasks, ({ one, many }) => ({
     case_: one(cases, { fields: [tasks.caseId], references: [cases.id] }),
     assignee: one(users, { fields: [tasks.assigneeId], references: [users.id] }),
+    timeEntries: many(timeEntries),
 }));
 
 export const timeEntriesRelations = relations(timeEntries, ({ one }) => ({

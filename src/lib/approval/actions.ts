@@ -120,12 +120,13 @@ export async function batchApproveEntities({
 
 export async function getPendingApprovalCounts(): Promise<Record<ApprovalEntityType, number>> {
     const sessionUser = await getSessionRole();
-    if (!sessionUser) return { payable: 0, receivable: 0, time_entry: 0 };
+    if (!sessionUser) return { payable: 0, receivable: 0, time_entry: 0, pre_invoice: 0 };
 
     // TODO: Query DB for counts of pending approvals per entity type
     return {
         payable: 2,
         receivable: 2,
         time_entry: 2,
+        pre_invoice: 0,
     };
 }

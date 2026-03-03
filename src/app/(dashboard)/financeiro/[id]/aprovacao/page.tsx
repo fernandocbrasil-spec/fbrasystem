@@ -1,20 +1,40 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { PageHeader } from "@/components/ui/page-header";
 import { ApprovalBadge } from "@/components/approval/approval-badge";
-import { MOCK_RECEIVABLES } from "@/lib/mock-data";
+import { getReceivables } from "@/lib/actions";
+import type { MockReceivable } from "@/lib/mock-data";
 import { ArrowLeft, CheckCircle, XCircle, Receipt, User, Calendar, FileText } from "lucide-react";
 import Link from "next/link";
 
 export default function FinanceiroAprovacaoDetalhePage() {
     const { id } = useParams<{ id: string }>();
-    const item = MOCK_RECEIVABLES.find((r) => r.id === id);
+    const [item, setItem] = useState<MockReceivable | null>(null);
+    const [loading, setLoading] = useState(true);
 
-    const [status, setStatus] = useState(item?.approvalStatus ?? "pendente");
+    const loadItem = useCallback(async () => {
+        const all = await getReceivables();
+        setItem(all.find((r) => r.id === id) ?? null);
+        setLoading(false);
+    }, [id]);
+
+    useEffect(() => {
+        loadItem();
+    }, [loadItem]);
+
+    const [status, setStatus] = useState("pendente");
     const [rejectComment, setRejectComment] = useState("");
     const [showRejectForm, setShowRejectForm] = useState(false);
+
+    useEffect(() => {
+        if (item) setStatus(item.approvalStatus);
+    }, [item]);
+
+    if (loading) {
+        return <div className="py-12 text-center"><p className="text-sm text-pf-grey">Carregando...</p></div>;
+    }
 
     if (!item) {
         return (

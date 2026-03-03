@@ -1,29 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ReportToolbar, getDensityClasses, type ColumnDef, type Density, type FilterDef } from "@/components/ui/report-toolbar";
 import { SearchInput } from "@/components/ui";
 import { MapPin, CalendarDays, Briefcase } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { getCases } from "@/lib/actions";
+import type { MockCase } from "@/lib/mock-data";
 
 type CaseStatus = "Ativo" | "Em Pausa";
-
-const cases: {
-    id: string;
-    number: string;
-    client: string;
-    title: string;
-    area: string;
-    responsible: string;
-    status: CaseStatus;
-    startDate: string;
-}[] = [
-    { id: "1", number: "CA-2026-001", client: "Grupo Sequoia", title: "Assessoria Contábil e Fiscal Contínua", area: "Tributário / Consultivo", responsible: "José Rafael Feiteiro", status: "Ativo", startDate: "01/03/2026" },
-    { id: "2", number: "CA-2026-002", client: "TechCorp BR", title: "Planejamento Tributário 2026", area: "Tributário / Planejamento", responsible: "Carlos Oliveira", status: "Ativo", startDate: "25/02/2026" },
-    { id: "3", number: "CA-2025-089", client: "Logística ABC", title: "Revisão de Passivo Trabalhista", area: "Trabalhista", responsible: "Ana Souza", status: "Em Pausa", startDate: "10/11/2025" },
-];
 
 const statusStyle: Record<CaseStatus, string> = {
     Ativo: "bg-green-100 text-green-700",
@@ -43,6 +30,17 @@ const ALL_COLUMN_KEYS = TABLE_COLUMNS.map((c) => c.key);
 
 export default function CasesPage() {
     const router = useRouter();
+    const [data, setData] = useState<MockCase[]>([]);
+
+    const loadData = useCallback(async () => {
+        const result = await getCases();
+        setData(result);
+    }, []);
+
+    useEffect(() => {
+        loadData();
+    }, [loadData]);
+
     const [search, setSearch] = useState("");
     const [areaFilter, setAreaFilter] = useState<string[]>([]);
     const [statusFilter, setStatusFilter] = useState<string[]>([]);
@@ -51,7 +49,7 @@ export default function CasesPage() {
 
     const densityClasses = getDensityClasses(density);
 
-    const areaOptions = Array.from(new Set(cases.map((c) => c.area))).map((area) => ({
+    const areaOptions = Array.from(new Set(data.map((c) => c.area))).map((area) => ({
         value: area,
         label: area,
     }));
@@ -69,7 +67,7 @@ export default function CasesPage() {
         setStatusFilter(filters.status || []);
     };
 
-    const filtered = cases.filter((c) =>
+    const filtered = data.filter((c) =>
         (search === "" || c.title.toLowerCase().includes(search.toLowerCase()) || c.client.toLowerCase().includes(search.toLowerCase())) &&
         (areaFilter.length === 0 || areaFilter.includes(c.area)) &&
         (statusFilter.length === 0 || statusFilter.includes(c.status))

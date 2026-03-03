@@ -22,28 +22,24 @@ import {
     Minimize2,
     Download,
 } from "lucide-react";
+import {
+    getLeadsForBoard,
+    createLeadFromBoard,
+    updateLeadFromBoard,
+} from "@/lib/actions";
+import type {
+    BoardLead,
+    BoardLeadStatus,
+    BoardLeadPriority,
+    BoardLeadStage,
+} from "@/lib/actions/leads";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
-type LeadStatus = "em_andamento" | "feito" | "parado" | "nao_iniciado";
-type LeadPriority = "critico" | "alta" | "media" | "baixa" | "";
-type LeadStage = "prospeccao" | "qualificacao" | "proposta" | "negociacao" | "ganho" | "perdido";
-
-type Lead = {
-    id: string;
-    name: string;
-    responsible: string;
-    status: LeadStatus;
-    deadline: string;
-    priority: LeadPriority;
-    notes: string;
-    value: string;
-    files: number;
-    timeline: { start: string; end: string } | null;
-    updatedAt: string;
-    updatedBy: string;
-    stage: LeadStage;
-};
+type LeadStatus = BoardLeadStatus;
+type LeadPriority = BoardLeadPriority;
+type LeadStage = BoardLeadStage;
+type Lead = BoardLead;
 
 type Group = {
     id: string;
@@ -160,81 +156,6 @@ function parseValue(val: string): number {
     const num = parseFloat(val.replace(/[^\d,.]/g, "").replace(".", "").replace(",", "."));
     return isNaN(num) ? 0 : num;
 }
-
-// ─── Initial Data ────────────────────────────────────────────────────────────
-
-const INITIAL_LEADS: Lead[] = [
-    {
-        id: "1", name: "TechCorp BR — Assessoria Tributaria", responsible: "Jose Rafael",
-        status: "em_andamento", deadline: "2026-03-01", priority: "baixa",
-        notes: "Elementos de acao", value: "R$ 45.000", files: 1,
-        timeline: { start: "2026-03-01", end: "2026-03-02" },
-        updatedAt: "2026-03-02T10:26:00", updatedBy: "Fernando Correia", stage: "prospeccao",
-    },
-    {
-        id: "2", name: "Grupo Sequoia — Planejamento Fiscal", responsible: "Carlos Oliveira",
-        status: "feito", deadline: "2026-03-02", priority: "alta",
-        notes: "Notas de reuniao", value: "R$ 11.150", files: 0,
-        timeline: { start: "2026-03-03", end: "2026-03-04" },
-        updatedAt: "2026-03-02T10:26:00", updatedBy: "Fernando Correia", stage: "prospeccao",
-    },
-    {
-        id: "3", name: "Logistica ABC — Contencioso", responsible: "Ana Souza",
-        status: "parado", deadline: "2026-03-03", priority: "media",
-        notes: "Outro", value: "R$ 8.500", files: 0,
-        timeline: { start: "2026-03-05", end: "2026-03-06" },
-        updatedAt: "2026-03-02T10:26:00", updatedBy: "Fernando Correia", stage: "prospeccao",
-    },
-    {
-        id: "4", name: "Construtora Ipe — Compliance", responsible: "Fernando Brasil",
-        status: "nao_iniciado", deadline: "2026-03-05", priority: "critico",
-        notes: "Urgente", value: "R$ 22.000", files: 2,
-        timeline: { start: "2026-03-01", end: "2026-03-10" },
-        updatedAt: "2026-03-01T15:00:00", updatedBy: "Jose Rafael", stage: "qualificacao",
-    },
-    {
-        id: "5", name: "Farmacia Vida — Societario", responsible: "Jose Rafael",
-        status: "em_andamento", deadline: "2026-03-08", priority: "media",
-        notes: "Aguardando docs", value: "R$ 6.200", files: 1,
-        timeline: { start: "2026-03-06", end: "2026-03-12" },
-        updatedAt: "2026-03-01T09:00:00", updatedBy: "Ana Souza", stage: "qualificacao",
-    },
-    {
-        id: "6", name: "Rede Plus — Trabalhista", responsible: "Carlos Oliveira",
-        status: "feito", deadline: "2026-02-28", priority: "alta",
-        notes: "Proposta enviada", value: "R$ 15.000", files: 3,
-        timeline: { start: "2026-02-20", end: "2026-03-01" },
-        updatedAt: "2026-02-28T14:00:00", updatedBy: "Carlos Oliveira", stage: "proposta",
-    },
-    {
-        id: "7", name: "Auto Pecas JR — Tributario", responsible: "Ana Souza",
-        status: "em_andamento", deadline: "2026-03-10", priority: "baixa",
-        notes: "Follow-up", value: "R$ 3.800", files: 0,
-        timeline: { start: "2026-03-08", end: "2026-03-15" },
-        updatedAt: "2026-03-02T08:00:00", updatedBy: "Fernando Brasil", stage: "proposta",
-    },
-    {
-        id: "8", name: "Hotel Atlantico — Consultivo", responsible: "Fernando Brasil",
-        status: "em_andamento", deadline: "2026-03-12", priority: "alta",
-        notes: "Negociacao de valores", value: "R$ 32.000", files: 1,
-        timeline: { start: "2026-03-05", end: "2026-03-15" },
-        updatedAt: "2026-03-02T11:30:00", updatedBy: "Jose Rafael", stage: "negociacao",
-    },
-    {
-        id: "9", name: "Clinica Saude Total — Fiscal", responsible: "Jose Rafael",
-        status: "feito", deadline: "2026-02-25", priority: "media",
-        notes: "Contrato assinado", value: "R$ 18.500", files: 4,
-        timeline: { start: "2026-02-15", end: "2026-02-28" },
-        updatedAt: "2026-02-25T16:00:00", updatedBy: "Jose Rafael", stage: "ganho",
-    },
-    {
-        id: "10", name: "Padaria Estrela — Contabil", responsible: "Carlos Oliveira",
-        status: "parado", deadline: "2026-02-20", priority: "baixa",
-        notes: "Sem retorno", value: "R$ 2.100", files: 0,
-        timeline: null,
-        updatedAt: "2026-02-20T10:00:00", updatedBy: "Carlos Oliveira", stage: "perdido",
-    },
-];
 
 // ─── Generic Toolbar Dropdown ────────────────────────────────────────────────
 
@@ -538,8 +459,22 @@ function sortLeads(items: Lead[], sortKey: SortKey | null, sortDir: SortDir): Le
 // ─── Main Page Component ─────────────────────────────────────────────────────
 
 export default function LeadsMondayBoard() {
-    // Core data
-    const [allLeads, setAllLeads] = useState<Lead[]>(INITIAL_LEADS);
+    // Core data — loaded from server action
+    const [allLeads, setAllLeads] = useState<Lead[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    const loadLeads = useCallback(async () => {
+        try {
+            const data = await getLeadsForBoard();
+            setAllLeads(data);
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        loadLeads();
+    }, [loadLeads]);
 
     // Toolbar state
     const [search, setSearch] = useState("");
@@ -705,39 +640,47 @@ export default function LeadsMondayBoard() {
     };
 
     const updateLead = useCallback((leadId: string, patch: Partial<Lead>) => {
+        // Optimistic local update
         setAllLeads((prev) => prev.map((l) => (l.id === leadId ? { ...l, ...patch, updatedAt: new Date().toISOString(), updatedBy: "Voce" } : l)));
+        // Persist to DB in background
+        updateLeadFromBoard(leadId, { ...patch, updatedBy: "Voce" }).catch(() => {});
     }, []);
 
-    const addItem = useCallback((groupId: string) => {
+    const addItem = useCallback(async (groupId: string) => {
         if (!newItemName.trim()) return;
+        const stage: LeadStage = groupBy === "stage" ? (groupId as LeadStage) : "prospeccao";
+        let status: LeadStatus = "nao_iniciado";
+        let responsible = "";
+        let priority: LeadPriority = "";
+        if (groupBy === "status") status = groupId as LeadStatus;
+        if (groupBy === "priority") priority = (groupId === "__none" ? "" : groupId) as LeadPriority;
+        if (groupBy === "responsible") responsible = groupId === "__unassigned" ? "" : groupId;
+
+        const tempId = `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
         const newLead: Lead = {
-            id: `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-            name: newItemName.trim(),
-            responsible: "",
-            status: "nao_iniciado",
-            deadline: "",
-            priority: "",
-            notes: "",
-            value: "",
-            files: 0,
-            timeline: null,
-            updatedAt: new Date().toISOString(),
-            updatedBy: "Voce",
-            stage: groupBy === "stage" ? (groupId as LeadStage) : "prospeccao",
+            id: tempId, name: newItemName.trim(), responsible, status, deadline: "", priority,
+            notes: "", value: "", files: 0, timeline: null,
+            updatedAt: new Date().toISOString(), updatedBy: "Voce", stage, followUpDate: "",
         };
-        // Apply current group context
-        if (groupBy === "status") newLead.status = groupId as LeadStatus;
-        if (groupBy === "priority") newLead.priority = (groupId === "__none" ? "" : groupId) as LeadPriority;
-        if (groupBy === "responsible") newLead.responsible = groupId === "__unassigned" ? "" : groupId;
         setAllLeads((prev) => [...prev, newLead]);
         setNewItemName("");
         setAddingToGroup(null);
+
+        // Persist to DB, replace temp ID with real UUID
+        const result = await createLeadFromBoard({
+            name: newLead.name, responsible, status, stage,
+            priority, notes: "", value: "",
+        });
+        if (result.success && result.id) {
+            setAllLeads((prev) => prev.map((l) => (l.id === tempId ? { ...l, id: result.id! } : l)));
+        }
     }, [newItemName, groupBy]);
 
-    const addNewLead = useCallback(() => {
+    const addNewLead = useCallback(async () => {
         if (!newName.trim()) return;
+        const tempId = `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
         const newLead: Lead = {
-            id: `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            id: tempId,
             name: newName.trim(),
             responsible: newResponsible,
             status: newFormStatus,
@@ -750,6 +693,7 @@ export default function LeadsMondayBoard() {
             updatedAt: new Date().toISOString(),
             updatedBy: "Voce",
             stage: newStage,
+            followUpDate: "",
         };
         setAllLeads((prev) => [newLead, ...prev]);
         setNewName("");
@@ -761,6 +705,17 @@ export default function LeadsMondayBoard() {
         setNewValue("");
         setNewNotes("");
         setShowNewForm(false);
+
+        // Persist to DB
+        const result = await createLeadFromBoard({
+            name: newLead.name, responsible: newLead.responsible,
+            status: newLead.status, stage: newLead.stage,
+            deadline: newLead.deadline, priority: newLead.priority,
+            notes: newLead.notes, value: newLead.value,
+        });
+        if (result.success && result.id) {
+            setAllLeads((prev) => prev.map((l) => (l.id === tempId ? { ...l, id: result.id! } : l)));
+        }
     }, [newName, newResponsible, newFormStatus, newDeadline, newPriority, newNotes, newValue, newStage]);
 
     const exportCsv = useCallback(() => {
@@ -1241,7 +1196,13 @@ export default function LeadsMondayBoard() {
 
             {/* ─── Board Body ────────────────────────────────────────── */}
             <div className="flex-1 overflow-auto">
-                {groups.map((group) => {
+                {loading && (
+                    <div className="flex items-center justify-center py-20">
+                        <div className="h-5 w-5 animate-spin rounded-full border-2 border-gray-300 border-t-[#0073EA]" />
+                        <span className="ml-3 text-sm text-gray-500">Carregando leads...</span>
+                    </div>
+                )}
+                {!loading && groups.map((group) => {
                     const isCollapsed = collapsedGroups.has(group.id);
                     const totalValue = group.items.reduce((sum, item) => sum + parseValue(item.value), 0);
                     const totalFiles = group.items.reduce((sum, item) => sum + item.files, 0);

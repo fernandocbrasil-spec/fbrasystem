@@ -1,13 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ReportToolbar, getDensityClasses, type ColumnDef, type Density, type FilterDef } from "@/components/ui/report-toolbar";
 import { ApprovalBadge } from "@/components/approval/approval-badge";
-import { MOCK_RECEIVABLES } from "@/lib/mock-data";
+import { getReceivables } from "@/lib/actions";
 import { Button, SearchInput } from "@/components/ui";
 import { Download } from "lucide-react";
+
+import type { MockReceivable } from "@/lib/mock-data";
 
 const TABLE_COLUMNS: ColumnDef[] = [
     { key: "cliente", label: "Cliente / Descricao", defaultVisible: true },
@@ -18,17 +20,33 @@ const TABLE_COLUMNS: ColumnDef[] = [
 ];
 
 export default function FinanceiroPage() {
+    const [receivables, setReceivables] = useState<MockReceivable[]>([]);
+    const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState("");
     const [visibleColumns, setVisibleColumns] = useState<string[]>(["cliente", "vencimento", "banco", "valor", "status"]);
     const [density, setDensity] = useState<Density>("compact");
 
+    const loadReceivables = useCallback(async () => {
+        setLoading(true);
+        try {
+            const data = await getReceivables();
+            setReceivables(data);
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        loadReceivables();
+    }, [loadReceivables]);
+
     const densityClasses = getDensityClasses(density);
 
-    const filtered = MOCK_RECEIVABLES.filter((r) =>
+    const filtered = receivables.filter((r) =>
         search === "" || r.cliente.toLowerCase().includes(search.toLowerCase()) || r.descricao.toLowerCase().includes(search.toLowerCase())
     );
 
-    const pendingApprovalCount = MOCK_RECEIVABLES.filter(r => r.approvalStatus === "desconto_solicitado" || r.approvalStatus === "baixa_solicitada").length;
+    const pendingApprovalCount = receivables.filter(r => r.approvalStatus === "desconto_solicitado" || r.approvalStatus === "baixa_solicitada").length;
 
     return (
         <div>

@@ -1,17 +1,27 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ApprovalActions } from "@/components/approval/approval-actions";
 import { ApprovalDialog } from "@/components/approval/approval-dialog";
 import { BatchApprovalBar } from "@/components/approval/batch-approval-bar";
-import { MOCK_PAYABLES, type MockPayable } from "@/lib/mock-data";
+import { getPayables } from "@/lib/actions";
+import type { MockPayable } from "@/lib/mock-data";
 import { ArrowLeft } from "lucide-react";
 
 export default function ContasAPagarAprovacoesPage() {
-    const [data, setData] = useState<MockPayable[]>(MOCK_PAYABLES);
+    const [data, setData] = useState<MockPayable[]>([]);
+
+    const loadData = useCallback(async () => {
+        const result = await getPayables();
+        setData(result);
+    }, []);
+
+    useEffect(() => {
+        loadData();
+    }, [loadData]);
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [rejectTarget, setRejectTarget] = useState<string | null>(null);
 

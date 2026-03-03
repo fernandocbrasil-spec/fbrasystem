@@ -113,7 +113,7 @@ export type MockInvoice = {
     client: string;
     caseName: string;
     value: string;
-    status: "Pendente Aprovacao" | "Faturado" | "Rascunho";
+    status: "Rascunho" | "Pendente Aprovacao" | "Aprovado" | "Faturado" | "Rejeitado" | "Cancelado";
     type: string;
 };
 

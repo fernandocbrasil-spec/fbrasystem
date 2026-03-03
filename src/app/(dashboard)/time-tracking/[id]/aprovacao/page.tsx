@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { PageHeader } from "@/components/ui/page-header";
 import { ApprovalBadge } from "@/components/approval/approval-badge";
-import { MOCK_TIME_ENTRIES } from "@/lib/mock-data";
+import { getTimeEntries } from "@/lib/actions";
+import type { MockTimeEntry } from "@/lib/mock-data";
 import { ArrowLeft, CheckCircle, XCircle, Clock, User, Calendar, Briefcase } from "lucide-react";
 import Link from "next/link";
 
@@ -25,11 +26,30 @@ function formatDuration(minutes: number) {
 
 export default function TimeTrackingAprovacaoDetalhePage() {
     const { id } = useParams<{ id: string }>();
-    const item = MOCK_TIME_ENTRIES.find((t) => t.id === id);
+    const [item, setItem] = useState<MockTimeEntry | null>(null);
+    const [loading, setLoading] = useState(true);
 
-    const [status, setStatus] = useState(item?.approvalStatus ?? "pendente");
+    const loadItem = useCallback(async () => {
+        const all = await getTimeEntries();
+        setItem(all.find((t) => t.id === id) ?? null);
+        setLoading(false);
+    }, [id]);
+
+    useEffect(() => {
+        loadItem();
+    }, [loadItem]);
+
+    const [status, setStatus] = useState("pendente");
     const [rejectComment, setRejectComment] = useState("");
     const [showRejectForm, setShowRejectForm] = useState(false);
+
+    useEffect(() => {
+        if (item) setStatus(item.approvalStatus);
+    }, [item]);
+
+    if (loading) {
+        return <div className="py-12 text-center"><p className="text-sm text-pf-grey">Carregando...</p></div>;
+    }
 
     if (!item) {
         return (

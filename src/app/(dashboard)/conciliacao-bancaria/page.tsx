@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { PageHeader } from "@/components/ui/page-header";
 import { ReportToolbar, getDensityClasses, type ColumnDef, type Density, type FilterDef } from "@/components/ui/report-toolbar";
 import { useToast } from "@/components/ui/toast";
-import { MOCK_BANK_ENTRIES } from "@/lib/mock-data";
+import { getBankEntries } from "@/lib/actions";
 import type { MockBankEntry } from "@/lib/mock-data";
 import { Button, SearchInput } from "@/components/ui";
 import { Landmark, Download, Link2, CheckCircle2, Clock, Loader2 } from "lucide-react";
@@ -86,8 +86,17 @@ export default function ConciliacaoBancariaPage() {
     const { toast } = useToast();
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    const [bankEntries, setBankEntries] = useState<MockBankEntry[]>([...MOCK_BANK_ENTRIES]);
+    const [bankEntries, setBankEntries] = useState<MockBankEntry[]>([]);
     const [importing, setImporting] = useState(false);
+
+    const loadEntries = useCallback(async () => {
+        const data = await getBankEntries();
+        setBankEntries(data);
+    }, []);
+
+    useEffect(() => {
+        loadEntries();
+    }, [loadEntries]);
 
     const [density, setDensity] = useState<Density>("compact");
     const [search, setSearch] = useState("");

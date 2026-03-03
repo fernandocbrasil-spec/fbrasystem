@@ -1,16 +1,18 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ReportToolbar, getDensityClasses, type ColumnDef, type Density, type FilterDef } from "@/components/ui/report-toolbar";
 import { ApprovalBadge } from "@/components/approval/approval-badge";
 import { useToast } from "@/components/ui/toast";
-import { MOCK_TIME_ENTRIES, MOCK_CASE_OPTIONS } from "@/lib/mock-data";
+import { getTimeEntries, createTimeEntry, submitTimeEntry, deleteTimeEntry, retractTimeEntry, getCapStatusAction } from "@/lib/actions";
+import { MOCK_CASE_OPTIONS } from "@/lib/mock-data";
 import type { MockTimeEntry } from "@/lib/mock-data";
+import type { CapStatus } from "@/lib/billing/cap";
 import { Button, SearchInput } from "@/components/ui";
 import {
-    Play, Pause, Square, Plus, Clock, X,
+    Play, Pause, Square, Plus, Clock, X, Send, Trash2, Undo2, AlertTriangle,
 } from "lucide-react";
 
 type ActivityType = "reuniao" | "pesquisa" | "elaboracao" | "revisao" | "audiencia" | "administrativo";
@@ -54,7 +56,16 @@ export default function TimeTrackingPage() {
     const { toast } = useToast();
 
     // Stateful entries
-    const [entries, setEntries] = useState<MockTimeEntry[]>([...MOCK_TIME_ENTRIES]);
+    const [entries, setEntries] = useState<MockTimeEntry[]>([]);
+
+    const loadEntries = useCallback(async () => {
+        const data = await getTimeEntries();
+        setEntries(data);
+    }, []);
+
+    useEffect(() => {
+        loadEntries();
+    }, [loadEntries]);
 
     // Manual form state
     const [showManualForm, setShowManualForm] = useState(false);
@@ -74,9 +85,12 @@ export default function TimeTrackingPage() {
     const [displayMs, setDisplayMs] = useState(0);
     const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+    // Cap status for selected case in manual form
+    const [manualCapStatus, setManualCapStatus] = useState<CapStatus | null>(null);
+
     const [search, setSearch] = useState("");
     const [typeFilter, setTypeFilter] = useState<string[]>([]);
-    const [visibleColumns, setVisibleColumns] = useState<string[]>(["hora", "atividade", "descricao", "tipo", "duracao", "status"]);
+    const [visibleColumns, setVisibleColumns] = useState<string[]>(["hora", "atividade", "descricao", "tipo", "duracao", "status", "acoes"]);
     const [density, setDensity] = useState<Density>("compact");
 
     const TABLE_COLUMNS: ColumnDef[] = [
@@ -86,6 +100,7 @@ export default function TimeTrackingPage() {
         { key: "tipo", label: "Tipo" },
         { key: "duracao", label: "Duracao" },
         { key: "status", label: "Status" },
+        { key: "acoes", label: "Acoes" },
     ];
 
     const FILTER_DEFS: FilterDef[] = [
@@ -97,6 +112,14 @@ export default function TimeTrackingPage() {
     };
 
     const densityClasses = getDensityClasses(density);
+
+    // Load cap status when case changes in manual form
+    useEffect(() => {
+        if (manualCaseId && showManualForm) {
+            const today = new Date().toISOString().split("T")[0];
+            getCapStatusAction(manualCaseId, today).then(setManualCapStatus);
+        }
+    }, [manualCaseId, showManualForm]);
 
     useEffect(() => {
         if (timerStatus === "running" && startedAt !== null) {
@@ -121,40 +144,69 @@ export default function TimeTrackingPage() {
         setTimerStatus("idle"); setTimerDesc("");
     };
 
-    // Manual form submit
-    const handleManualSubmit = () => {
+    // Manual form submit — calls server action
+    const handleManualSubmit = async () => {
         const minutes = parseDurationToMinutes(manualDuration);
         if (!manualDescription.trim() || minutes === null || minutes <= 0) return;
 
-        const selectedCase = MOCK_CASE_OPTIONS.find((c) => c.id === manualCaseId);
-        if (!selectedCase) return;
-
-        const now = new Date();
-        const startTime = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
-
-        const newEntry: MockTimeEntry = {
-            id: `manual-${Date.now()}`,
-            caseNumber: selectedCase.number,
-            caseTitle: selectedCase.title,
-            clientName: selectedCase.client,
+        const today = new Date().toISOString().split("T")[0];
+        const result = await createTimeEntry({
+            caseId: manualCaseId,
             activityType: manualActivityType,
             description: manualDescription.trim(),
             durationMinutes: minutes,
-            date: "2026-03-01",
-            startTime,
+            date: today,
             isBillable: manualBillable,
-            approvalStatus: "pendente",
-            submittedBy: "Usuario",
-        };
+        });
 
-        setEntries((prev) => [newEntry, ...prev]);
+        if (!result.success) {
+            toast(result.error ?? "Erro ao criar apontamento", "warning");
+            return;
+        }
+
+        if (result.capWarning) {
+            toast(result.capWarning, "warning");
+        }
+
         setShowManualForm(false);
         setManualDescription("");
         setManualDuration("");
         setManualBillable(true);
         setManualCaseId(MOCK_CASE_OPTIONS[0].id);
         setManualActivityType("reuniao");
-        toast(`Lancamento de ${formatDuration(minutes)} adicionado com sucesso.`, "success");
+        toast(`Lancamento de ${formatDuration(minutes)} salvo como rascunho.`, "success");
+        loadEntries();
+    };
+
+    // Row actions
+    const handleSubmitEntry = async (id: string) => {
+        const result = await submitTimeEntry(id);
+        if (result.success) {
+            toast("Apontamento submetido para aprovacao.");
+            loadEntries();
+        } else {
+            toast(result.error ?? "Erro ao submeter", "warning");
+        }
+    };
+
+    const handleRetractEntry = async (id: string) => {
+        const result = await retractTimeEntry(id);
+        if (result.success) {
+            toast("Apontamento retratado.");
+            loadEntries();
+        } else {
+            toast(result.error ?? "Erro ao retratar", "warning");
+        }
+    };
+
+    const handleDeleteEntry = async (id: string) => {
+        const result = await deleteTimeEntry(id);
+        if (result.success) {
+            toast("Apontamento excluido.");
+            loadEntries();
+        } else {
+            toast(result.error ?? "Erro ao excluir", "warning");
+        }
     };
 
     // Filtered entries for today
@@ -167,6 +219,7 @@ export default function TimeTrackingPage() {
     // KPIs computed from state
     const todayAll = entries.filter(e => e.date === "2026-03-01");
     const todayTotalMinutes = todayAll.reduce((s, e) => s + e.durationMinutes, 0);
+    const draftCount = entries.filter(e => e.approvalStatus === "rascunho").length;
     const pendingCount = entries.filter(e => e.approvalStatus === "pendente").length;
     const monthMinutes = entries.reduce((s, e) => s + e.durationMinutes, 0);
 
@@ -238,6 +291,17 @@ export default function TimeTrackingPage() {
                                 className="w-full h-8 rounded-md border border-pf-grey/20 px-3 text-sm font-sans outline-none focus:border-pf-blue bg-white"
                             />
                         </div>
+                        {/* Cap indicator */}
+                        {manualCapStatus && !manualCapStatus.isUncapped && (
+                            <div className={`flex items-center gap-2 rounded px-3 py-2 text-xs font-semibold ${
+                                manualCapStatus.threshold === "ok" ? "bg-emerald-50 text-emerald-700" :
+                                manualCapStatus.threshold === "warning" ? "bg-amber-50 text-amber-700" :
+                                "bg-red-50 text-red-700"
+                            }`}>
+                                {manualCapStatus.threshold !== "ok" && <AlertTriangle size={12} />}
+                                Cap: {Math.round(manualCapStatus.usedMinutes / 60)}h / {Math.round(manualCapStatus.capMinutes / 60)}h ({Math.round(manualCapStatus.percentage)}%)
+                            </div>
+                        )}
                         <div className="flex items-center justify-between pt-1">
                             <label className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-pf-grey cursor-pointer select-none">
                                 <input type="checkbox" checked={manualBillable} onChange={(e) => setManualBillable(e.target.checked)} className="accent-pf-blue" />
@@ -312,6 +376,16 @@ export default function TimeTrackingPage() {
                     </div>
                 </div>
 
+                {/* Draft reminder banner */}
+                {draftCount > 0 && (
+                    <div className="flex items-center gap-2 rounded bg-gray-50 border border-gray-200 px-4 py-2.5">
+                        <AlertTriangle size={14} className="text-gray-500 shrink-0" />
+                        <p className="text-xs font-semibold text-gray-600">
+                            Voce tem <span className="text-pf-black">{draftCount}</span> rascunho{draftCount > 1 ? "s" : ""} nao submetido{draftCount > 1 ? "s" : ""}. Submeta para aprovacao.
+                        </p>
+                    </div>
+                )}
+
                 {/* KPI Strip */}
                 <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
                     <div className="bg-white border border-pf-grey/20 rounded border-l-[3px] border-l-pf-blue p-2.5">
@@ -373,6 +447,7 @@ export default function TimeTrackingPage() {
                             {visibleColumns.includes("tipo") && <th className={`${densityClasses.cell} ${densityClasses.text} font-semibold uppercase tracking-wider`}>Tipo</th>}
                             {visibleColumns.includes("duracao") && <th className={`${densityClasses.cell} ${densityClasses.text} font-semibold uppercase tracking-wider text-right`}>Duracao</th>}
                             {visibleColumns.includes("status") && <th className={`${densityClasses.cell} ${densityClasses.text} font-semibold uppercase tracking-wider text-right`}>Status</th>}
+                            {visibleColumns.includes("acoes") && <th className={`${densityClasses.cell} ${densityClasses.text} font-semibold uppercase tracking-wider text-right`}>Acoes</th>}
                         </tr>
                     </thead>
                     <tbody>
@@ -402,6 +477,30 @@ export default function TimeTrackingPage() {
                                     </td>}
                                     {visibleColumns.includes("status") && <td className={`${densityClasses.cell} text-right`}>
                                         <ApprovalBadge status={entry.approvalStatus} />
+                                    </td>}
+                                    {visibleColumns.includes("acoes") && <td className={`${densityClasses.cell} text-right`}>
+                                        <div className="flex items-center justify-end gap-1">
+                                            {entry.approvalStatus === "rascunho" && (
+                                                <>
+                                                    <button onClick={() => handleSubmitEntry(entry.id)} title="Submeter para aprovacao" className="p-1 rounded hover:bg-pf-blue/10 transition-colors">
+                                                        <Send size={12} className="text-pf-blue" />
+                                                    </button>
+                                                    <button onClick={() => handleDeleteEntry(entry.id)} title="Excluir" className="p-1 rounded hover:bg-red-50 transition-colors">
+                                                        <Trash2 size={12} className="text-red-400" />
+                                                    </button>
+                                                </>
+                                            )}
+                                            {entry.approvalStatus === "pendente" && (
+                                                <button onClick={() => handleRetractEntry(entry.id)} title="Retratar" className="p-1 rounded hover:bg-orange-50 transition-colors">
+                                                    <Undo2 size={12} className="text-orange-500" />
+                                                </button>
+                                            )}
+                                            {entry.approvalStatus === "rejeitado" && (
+                                                <button onClick={() => handleDeleteEntry(entry.id)} title="Excluir" className="p-1 rounded hover:bg-red-50 transition-colors">
+                                                    <Trash2 size={12} className="text-red-400" />
+                                                </button>
+                                            )}
+                                        </div>
                                     </td>}
                                 </tr>
                             ))

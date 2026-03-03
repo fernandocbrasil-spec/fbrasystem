@@ -1,17 +1,27 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ApprovalActions } from "@/components/approval/approval-actions";
 import { ApprovalDialog } from "@/components/approval/approval-dialog";
 import { ApprovalBadge } from "@/components/approval/approval-badge";
-import { MOCK_RECEIVABLES, type MockReceivable } from "@/lib/mock-data";
+import { getReceivables } from "@/lib/actions";
+import type { MockReceivable } from "@/lib/mock-data";
 import { ArrowLeft } from "lucide-react";
 
 export default function FinanceiroAprovacoesPage() {
-    const [data, setData] = useState<MockReceivable[]>(MOCK_RECEIVABLES);
+    const [data, setData] = useState<MockReceivable[]>([]);
+
+    const loadData = useCallback(async () => {
+        const result = await getReceivables();
+        setData(result);
+    }, []);
+
+    useEffect(() => {
+        loadData();
+    }, [loadData]);
     const [rejectTarget, setRejectTarget] = useState<string | null>(null);
 
     const pending = data.filter(

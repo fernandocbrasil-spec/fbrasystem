@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ReportToolbar, getDensityClasses, type ColumnDef, type Density, type FilterDef } from "@/components/ui/report-toolbar";
 import { ApprovalDialog } from "@/components/approval/approval-dialog";
-import { MOCK_PAYABLES, MOCK_RECEIVABLES, MOCK_TIME_ENTRIES, MOCK_PROPOSALS, type MockPayable, type MockReceivable, type MockTimeEntry } from "@/lib/mock-data";
+import { getPayables, getReceivables, getTimeEntries, getProposals } from "@/lib/actions";
+import { type MockPayable, type MockReceivable, type MockTimeEntry, type MockProposal } from "@/lib/mock-data";
 import { SearchInput } from "@/components/ui";
 import { ShieldCheck, CreditCard, Receipt, Clock, FileText, ChevronRight, Check, X } from "lucide-react";
 
@@ -89,9 +90,22 @@ const FILTER_DEFS: FilterDef[] = [
 
 export default function AprovacoesConsolidadasPage() {
     // Data state
-    const [payables, setPayables] = useState<MockPayable[]>(MOCK_PAYABLES);
-    const [receivables, setReceivables] = useState<MockReceivable[]>(MOCK_RECEIVABLES);
-    const [timeEntries, setTimeEntries] = useState<MockTimeEntry[]>(MOCK_TIME_ENTRIES);
+    const [payables, setPayables] = useState<MockPayable[]>([]);
+    const [receivables, setReceivables] = useState<MockReceivable[]>([]);
+    const [timeEntriesData, setTimeEntriesData] = useState<MockTimeEntry[]>([]);
+    const [proposals, setProposals] = useState<MockProposal[]>([]);
+
+    const loadData = useCallback(async () => {
+        const [p, r, t, pr] = await Promise.all([getPayables(), getReceivables(), getTimeEntries(), getProposals()]);
+        setPayables(p);
+        setReceivables(r);
+        setTimeEntriesData(t);
+        setProposals(pr);
+    }, []);
+
+    useEffect(() => {
+        loadData();
+    }, [loadData]);
 
     // UI state
     const [openGroups, setOpenGroups] = useState<Set<GroupKey>>(new Set(["payables", "receivables", "timeEntries", "proposals"]));
@@ -104,8 +118,8 @@ export default function AprovacoesConsolidadasPage() {
     // Derived — pending items
     const pendingPayables = payables.filter((p) => p.approvalStatus === "pendente");
     const pendingReceivables = receivables.filter((r) => r.approvalStatus === "desconto_solicitado" || r.approvalStatus === "baixa_solicitada");
-    const pendingTimeEntries = timeEntries.filter((t) => t.approvalStatus === "pendente");
-    const pendingProposals = MOCK_PROPOSALS.filter((p) => p.status === "Em Revisao");
+    const pendingTimeEntries = timeEntriesData.filter((t) => t.approvalStatus === "pendente");
+    const pendingProposals = proposals.filter((p) => p.status === "Em Revisao");
 
     // Search filtering
     const q = search.toLowerCase();
@@ -159,7 +173,7 @@ export default function AprovacoesConsolidadasPage() {
     };
 
     const handleApproveTimeEntry = (id: string) => {
-        setTimeEntries((prev) => prev.map((t) => t.id === id ? { ...t, approvalStatus: "aprovado" as const, approvedBy: "Jose Rafael Feiteiro", approvedAt: "01/03/2026" } : t));
+        setTimeEntriesData((prev) => prev.map((t) => t.id === id ? { ...t, approvalStatus: "aprovado" as const, approvedBy: "Jose Rafael Feiteiro", approvedAt: "01/03/2026" } : t));
     };
 
     const handleReject = (comment: string) => {
@@ -170,7 +184,7 @@ export default function AprovacoesConsolidadasPage() {
         } else if (type === "receivables") {
             setReceivables((prev) => prev.map((r) => r.id === id ? { ...r, approvalStatus: "rejeitado" as const, rejectionComment: comment } : r));
         } else if (type === "timeEntries") {
-            setTimeEntries((prev) => prev.map((t) => t.id === id ? { ...t, approvalStatus: "rejeitado" as const, rejectionComment: comment } : t));
+            setTimeEntriesData((prev) => prev.map((t) => t.id === id ? { ...t, approvalStatus: "rejeitado" as const, rejectionComment: comment } : t));
         }
         setRejectTarget(null);
     };

@@ -1,12 +1,14 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ReportToolbar, getDensityClasses, type ColumnDef, type Density, type FilterDef } from "@/components/ui/report-toolbar";
 import { useToast } from "@/components/ui/toast";
 import { Button, SearchInput } from "@/components/ui";
-import { Receipt, Calendar, CheckSquare, Loader2 } from "lucide-react";
+import { Receipt, Calendar, CheckSquare, Loader2, Send, X, Ban } from "lucide-react";
+import { getInvoices, generatePreInvoice, submitPreInvoice, approvePreInvoice, rejectPreInvoice, cancelPreInvoice } from "@/lib/actions";
+import { MOCK_CASE_OPTIONS, type MockInvoice } from "@/lib/mock-data";
 
 const TABLE_COLUMNS: ColumnDef[] = [
     { key: "mes", label: "Mes Ref.", defaultVisible: true },
@@ -17,58 +19,61 @@ const TABLE_COLUMNS: ColumnDef[] = [
     { key: "acao", label: "Acao", defaultVisible: true },
 ];
 
-type InvoiceStatus = "Pendente Aprovacao" | "Faturado" | "Rascunho";
-
-type Invoice = {
-    id: string;
-    month: string;
-    client: string;
-    case: string;
-    value: string;
-    status: InvoiceStatus;
-    type: string;
-};
-
-const INITIAL_INVOICES: Invoice[] = [
-    { id: "1", month: "02/2026", client: "Grupo Sequoia", case: "Assessoria Contabil e Fiscal", value: "R$ 13.045,51", status: "Pendente Aprovacao", type: "Fixo Mensal" },
-    { id: "2", month: "02/2026", client: "TechCorp BR", case: "Planejamento Tributario 2026", value: "R$ 45.000,00", status: "Faturado", type: "Exito / Unica" },
-    { id: "3", month: "02/2026", client: "Industria Metal SP", case: "Consultoria Trabalhista HR", value: "R$ 8.540,00", status: "Rascunho", type: "Horas (Time & Material)" },
-];
-
-const statusStyle: Record<InvoiceStatus, string> = {
+const statusStyle: Record<string, string> = {
+    "Rascunho": "bg-gray-100 text-gray-600",
     "Pendente Aprovacao": "bg-orange-100 text-orange-700",
-    Faturado: "bg-green-100 text-green-700",
-    Rascunho: "bg-pf-grey/10 text-pf-grey",
+    "Aprovado": "bg-green-100 text-green-700",
+    "Faturado": "bg-indigo-100 text-indigo-700",
+    "Rejeitado": "bg-red-100 text-red-700",
+    "Cancelado": "bg-gray-100 text-gray-400",
 };
 
 const FILTER_DEFS: FilterDef[] = [
     { key: "modalidade", label: "Modalidade", options: [
         { value: "Fixo Mensal", label: "Fixo Mensal" },
-        { value: "Exito / Unica", label: "Exito / Unica" },
-        { value: "Horas (Time & Material)", label: "Horas" },
+        { value: "Exito", label: "Exito" },
+        { value: "Hora Trabalhada", label: "Hora Trabalhada" },
+        { value: "Hibrido", label: "Hibrido" },
     ]},
 ];
 
-const AVAILABLE_PERIODS = ["02/2026", "01/2026", "03/2026"];
-const PERIOD_LABELS = ["Fev/2026", "Jan/2026", "Mar/2026"];
+function getCurrentPeriod(): string {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+}
 
-// Mock clients for the engine-generated invoice
-const ENGINE_MOCK_CLIENTS = [
-    { client: "Nexus Participacoes", case: "Consultoria Societaria", value: "R$ 18.500,00", type: "Fixo Mensal" },
-    { client: "Grupo Beta S.A.", case: "Assessoria Tributaria", value: "R$ 7.200,00", type: "Fixo Mensal" },
-    { client: "Solar Energia LTDA", case: "Compliance Fiscal Q1", value: "R$ 12.800,00", type: "Horas (Time & Material)" },
-];
+function formatPeriodLabel(period: string): string {
+    const [y, m] = period.split("-");
+    const months = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+    return `${months[parseInt(m) - 1]}/${y}`;
+}
 
 export default function BillingPage() {
     const { toast } = useToast();
-    const [invoices, setInvoices] = useState<Invoice[]>([...INITIAL_INVOICES]);
+    const [invoices, setInvoices] = useState<MockInvoice[]>([]);
     const [search, setSearch] = useState("");
+
+    const loadData = useCallback(async () => {
+        const result = await getInvoices();
+        setInvoices(result);
+    }, []);
+
+    useEffect(() => {
+        loadData();
+    }, [loadData]);
+
     const [typeFilter, setTypeFilter] = useState<string[]>([]);
     const [visibleColumns, setVisibleColumns] = useState<string[]>(["mes", "cliente", "modalidade", "valor", "status", "acao"]);
     const [density, setDensity] = useState<Density>("compact");
-    const [periodIndex, setPeriodIndex] = useState(0);
     const [engineLoading, setEngineLoading] = useState(false);
-    const [engineMockIndex, setEngineMockIndex] = useState(0);
+
+    // Engine form state
+    const [selectedCaseId, setSelectedCaseId] = useState(MOCK_CASE_OPTIONS[0]?.id ?? "");
+    const [selectedPeriod, setSelectedPeriod] = useState(getCurrentPeriod());
+
+    // Reject modal state
+    const [rejectModalId, setRejectModalId] = useState<string | null>(null);
+    const [rejectComment, setRejectComment] = useState("");
 
     const densityClasses = getDensityClasses(density);
 
@@ -77,58 +82,94 @@ export default function BillingPage() {
     };
 
     const filtered = invoices.filter((inv) =>
-        (search === "" || inv.client.toLowerCase().includes(search.toLowerCase()) || inv.case.toLowerCase().includes(search.toLowerCase())) &&
+        (search === "" || inv.client.toLowerCase().includes(search.toLowerCase()) || inv.caseName.toLowerCase().includes(search.toLowerCase())) &&
         (typeFilter.length === 0 || typeFilter.includes(inv.type))
     );
 
-    // KPIs computed from state
+    // KPIs
     const totalFaturar = invoices.reduce((acc, inv) => {
         const num = parseFloat(inv.value.replace("R$ ", "").replace(/\./g, "").replace(",", "."));
         return acc + (isNaN(num) ? 0 : num);
     }, 0);
 
-    const preFaturasAbertas = invoices.filter((inv) => inv.status !== "Faturado").length;
-
+    const preFaturasAbertas = invoices.filter((inv) => inv.status !== "Faturado" && inv.status !== "Cancelado").length;
     const ticketMedio = invoices.length > 0 ? totalFaturar / invoices.length : 0;
 
     const formatBRL = (v: number) => {
         return `R$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
     };
 
-    // Handlers
-    const handleCyclePeriod = () => {
-        setPeriodIndex((prev) => (prev + 1) % AVAILABLE_PERIODS.length);
-    };
-
-    const handleRunEngine = useCallback(() => {
-        if (engineLoading) return;
+    // ── Engine: generate pre-invoice via server action ──
+    const handleRunEngine = async () => {
+        if (engineLoading || !selectedCaseId) return;
         setEngineLoading(true);
 
-        setTimeout(() => {
-            const mockData = ENGINE_MOCK_CLIENTS[engineMockIndex % ENGINE_MOCK_CLIENTS.length];
-            const newInvoice: Invoice = {
-                id: `eng-${Date.now()}`,
-                month: AVAILABLE_PERIODS[periodIndex],
-                client: mockData.client,
-                case: mockData.case,
-                value: mockData.value,
-                status: "Rascunho",
-                type: mockData.type,
-            };
-            setInvoices((prev) => [...prev, newInvoice]);
-            setEngineMockIndex((prev) => prev + 1);
-            setEngineLoading(false);
-            toast(`Pre-fatura gerada para ${mockData.client}.`);
-        }, 1500);
-    }, [engineLoading, engineMockIndex, periodIndex, toast]);
+        const result = await generatePreInvoice({
+            caseId: selectedCaseId,
+            period: selectedPeriod,
+        });
 
-    const handleDownloadNFSE = (inv: Invoice) => {
+        setEngineLoading(false);
+
+        if (result.success) {
+            toast(`Pre-fatura gerada: ${result.totalValue} (${result.entryCount} apontamentos).`);
+            loadData();
+        } else {
+            toast(result.error ?? "Erro ao gerar pre-fatura", "warning");
+        }
+    };
+
+    // ── Lifecycle actions ──
+    const handleSubmit = async (id: string) => {
+        const result = await submitPreInvoice(id);
+        if (result.success) {
+            toast("Pre-fatura enviada para aprovacao.");
+            loadData();
+        } else {
+            toast(result.error ?? "Erro", "warning");
+        }
+    };
+
+    const handleApprove = async (id: string) => {
+        const result = await approvePreInvoice(id);
+        if (result.success) {
+            toast("Pre-fatura aprovada.");
+            loadData();
+        } else {
+            toast(result.error ?? "Erro", "warning");
+        }
+    };
+
+    const handleReject = async () => {
+        if (!rejectModalId || !rejectComment.trim()) return;
+        const result = await rejectPreInvoice(rejectModalId, rejectComment.trim());
+        if (result.success) {
+            toast("Pre-fatura rejeitada. Apontamentos desbloqueados.");
+            setRejectModalId(null);
+            setRejectComment("");
+            loadData();
+        } else {
+            toast(result.error ?? "Erro", "warning");
+        }
+    };
+
+    const handleCancel = async (id: string) => {
+        const result = await cancelPreInvoice(id);
+        if (result.success) {
+            toast("Pre-fatura cancelada. Apontamentos desbloqueados.");
+            loadData();
+        } else {
+            toast(result.error ?? "Erro", "warning");
+        }
+    };
+
+    const handleDownloadNFSE = (inv: MockInvoice) => {
         const content = [
             `NFS-e Simulada — PF Advogados`,
             `========================================`,
             `ID: ${inv.id}`,
             `Cliente: ${inv.client}`,
-            `Caso: ${inv.case}`,
+            `Caso: ${inv.caseName}`,
             `Competencia: ${inv.month}`,
             `Valor: ${inv.value}`,
             `Modalidade: ${inv.type}`,
@@ -150,72 +191,111 @@ export default function BillingPage() {
         toast("NFS-e baixada com sucesso.");
     };
 
-    const handleRevisar = (invId: string) => {
-        setInvoices((prev) =>
-            prev.map((inv) => {
-                if (inv.id === invId && (inv.status === "Rascunho" || inv.status === "Pendente Aprovacao")) {
-                    return { ...inv, status: "Faturado" as InvoiceStatus };
-                }
-                return inv;
-            })
-        );
-        toast("Pre-fatura aprovada e marcada como Faturado.");
-    };
-
     return (
         <div>
-            {/* PageHeader + KPIs scroll with content */}
             <div className="space-y-2 pb-3">
                 <PageHeader
                     title="Faturamento (Pre-Faturas)"
                     subtitle="Modulo de geracao e aprovacao de cobrancas baseadas nos contratos (Plans) ou Horas."
-                    actions={
-                        <Button variant="dark" icon={engineLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Receipt className="h-4 w-4" />} onClick={handleRunEngine} disabled={engineLoading}>
-                            {engineLoading ? "Processando..." : `Rodar Engine de Fechamento (${PERIOD_LABELS[periodIndex].slice(0, 6)})`}
-                        </Button>
-                    }
                 />
+
+                {/* Engine Controls */}
+                <div className="bg-white border border-pf-grey/20 rounded p-4 flex flex-col gap-3 sm:flex-row sm:items-end">
+                    <div className="flex-1">
+                        <label className="block text-[10px] font-bold uppercase tracking-[0.15em] text-pf-grey mb-1">Caso</label>
+                        <select
+                            value={selectedCaseId}
+                            onChange={(e) => setSelectedCaseId(e.target.value)}
+                            className="w-full h-8 rounded-md border border-pf-grey/20 px-3 text-sm font-sans outline-none focus:border-pf-blue bg-white"
+                        >
+                            {MOCK_CASE_OPTIONS.map((c) => (
+                                <option key={c.id} value={c.id}>{c.number} -- {c.client}</option>
+                            ))}
+                        </select>
+                    </div>
+                    <div className="w-40">
+                        <label className="block text-[10px] font-bold uppercase tracking-[0.15em] text-pf-grey mb-1">Periodo</label>
+                        <input
+                            type="month"
+                            value={selectedPeriod}
+                            onChange={(e) => setSelectedPeriod(e.target.value)}
+                            className="w-full h-8 rounded-md border border-pf-grey/20 px-3 text-sm font-sans outline-none focus:border-pf-blue bg-white"
+                        />
+                    </div>
+                    <Button
+                        variant="dark"
+                        icon={engineLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Receipt className="h-4 w-4" />}
+                        onClick={handleRunEngine}
+                        disabled={engineLoading}
+                        className="h-8"
+                    >
+                        {engineLoading ? "Gerando..." : `Gerar Pre-Fatura (${formatPeriodLabel(selectedPeriod)})`}
+                    </Button>
+                </div>
 
                 {/* KPIs */}
                 <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
                     <div className="bg-white border border-pf-grey/20 rounded border-l-[3px] border-l-pf-blue p-2.5">
                         <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-pf-grey">Total a Faturar</p>
                         <p className="font-sans text-xl font-bold text-pf-black mt-1 leading-none">{formatBRL(totalFaturar)}</p>
-                        <p className="text-[9px] text-green-600 font-semibold mt-1">+12% vs mes anterior</p>
-                    </div>
-                    <div className="bg-white border border-pf-grey/20 rounded p-2.5">
-                        <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-pf-grey">Horas Apontadas</p>
-                        <p className="font-sans text-xl font-bold text-pf-black mt-1 leading-none">124h 30m</p>
-                        <p className="text-[9px] text-orange-500 font-semibold mt-1">18h pendentes aprovacao</p>
                     </div>
                     <div className="bg-white border border-pf-grey/20 rounded p-2.5">
                         <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-pf-grey">Pre-Faturas Abertas</p>
                         <p className="font-sans text-xl font-bold text-pf-blue mt-1 leading-none">{preFaturasAbertas}</p>
-                        <p className="text-[9px] text-pf-grey mt-1">{PERIOD_LABELS[periodIndex]}</p>
                     </div>
                     <div className="bg-white border border-pf-grey/20 rounded p-2.5">
                         <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-pf-grey">Ticket Medio</p>
                         <p className="font-sans text-xl font-bold text-pf-black mt-1 leading-none">{formatBRL(ticketMedio)}</p>
                     </div>
+                    <div className="bg-white border border-pf-grey/20 rounded p-2.5">
+                        <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-pf-grey">Pre-Faturas Total</p>
+                        <p className="font-sans text-xl font-bold text-pf-black mt-1 leading-none">{invoices.length}</p>
+                    </div>
                 </div>
             </div>
 
-            {/* Sticky: only search + ReportToolbar */}
+            {/* Reject Modal */}
+            {rejectModalId && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
+                    <div className="bg-white rounded-lg p-6 w-full max-w-md shadow-xl space-y-4">
+                        <div className="flex items-center justify-between">
+                            <h3 className="text-sm font-bold text-pf-black">Rejeitar Pre-Fatura</h3>
+                            <button onClick={() => { setRejectModalId(null); setRejectComment(""); }}><X size={16} className="text-pf-grey" /></button>
+                        </div>
+                        <div>
+                            <label className="block text-[10px] font-bold uppercase tracking-[0.15em] text-pf-grey mb-1">Motivo da Rejeicao</label>
+                            <textarea
+                                value={rejectComment}
+                                onChange={(e) => setRejectComment(e.target.value)}
+                                placeholder="Informe o motivo..."
+                                className="w-full border border-pf-grey/20 rounded p-3 text-sm outline-none focus:border-pf-blue h-24 resize-none"
+                            />
+                        </div>
+                        <div className="flex justify-end gap-2">
+                            <Button variant="secondary" size="sm" onClick={() => { setRejectModalId(null); setRejectComment(""); }}>Cancelar</Button>
+                            <button
+                                onClick={handleReject}
+                                disabled={!rejectComment.trim()}
+                                className="rounded bg-red-600 px-4 py-2 text-xs font-bold text-white hover:bg-red-700 transition-colors disabled:opacity-50"
+                            >
+                                Rejeitar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Sticky: search + ReportToolbar */}
             <div className="sticky top-0 z-20 bg-[#F4F5F7] py-2 space-y-2">
                 <div className="flex items-center justify-between">
-                    <span className="text-sm font-bold text-pf-black">Pre-Faturas do Periodo</span>
-                    <div className="flex gap-2">
-                        <SearchInput
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                            onClear={() => setSearch("")}
-                            placeholder="Buscar cliente ou caso..."
-                            aria-label="Buscar cliente ou caso"
-                        />
-                        <Button variant="secondary" icon={<Calendar className="h-4 w-4" />} onClick={handleCyclePeriod} className="h-8">
-                            {PERIOD_LABELS[periodIndex]}
-                        </Button>
-                    </div>
+                    <span className="text-sm font-bold text-pf-black">Pre-Faturas</span>
+                    <SearchInput
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        onClear={() => setSearch("")}
+                        placeholder="Buscar cliente ou caso..."
+                        aria-label="Buscar cliente ou caso"
+                    />
                 </div>
 
                 <ReportToolbar
@@ -249,42 +329,73 @@ export default function BillingPage() {
                                 <td colSpan={visibleColumns.length}>
                                     <EmptyState
                                         title="Nenhuma pre-fatura encontrada"
-                                        message="Limpe os filtros ou rode a engine de fechamento."
+                                        message="Limpe os filtros ou gere uma pre-fatura acima."
                                     />
                                 </td>
                             </tr>
                         ) : (
                             filtered.map((inv) => (
-                                <tr key={inv.id} className="border-b border-pf-grey/15 hover:bg-white transition-colors cursor-pointer">
+                                <tr key={inv.id} className="border-b border-pf-grey/15 hover:bg-white transition-colors">
                                     {visibleColumns.includes("mes") && <td className={`${densityClasses.cell} text-pf-grey font-mono ${densityClasses.text}`}>{inv.month}</td>}
                                     {visibleColumns.includes("cliente") && <td className={`${densityClasses.cell}`}>
                                         <p className={`font-bold text-pf-black ${densityClasses.text}`}>{inv.client}</p>
-                                        <p className={`${densityClasses.text} text-pf-grey truncate max-w-[200px] mt-0.5`}>{inv.case}</p>
+                                        <p className={`${densityClasses.text} text-pf-grey truncate max-w-[200px] mt-0.5`}>{inv.caseName}</p>
                                     </td>}
                                     {visibleColumns.includes("modalidade") && <td className={`${densityClasses.cell} text-pf-grey ${densityClasses.text} uppercase font-bold`}>{inv.type}</td>}
                                     {visibleColumns.includes("valor") && <td className={`${densityClasses.cell} ${densityClasses.text} text-right font-bold text-pf-black font-mono`}>{inv.value}</td>}
                                     {visibleColumns.includes("status") && <td className={`${densityClasses.cell}`}>
-                                        <span className={`inline-flex items-center rounded-sm px-2 py-1 text-[10px] font-bold uppercase tracking-widest ${statusStyle[inv.status]}`}>{inv.status}</span>
+                                        <span className={`inline-flex items-center rounded-sm px-2 py-1 text-[10px] font-bold uppercase tracking-widest ${statusStyle[inv.status] ?? "bg-gray-100 text-gray-600"}`}>{inv.status}</span>
                                     </td>}
                                     {visibleColumns.includes("acao") && <td className={`${densityClasses.cell} text-right`}>
-                                        {inv.status === "Faturado" ? (
-                                            <button
-                                                onClick={(e) => { e.stopPropagation(); handleDownloadNFSE(inv); }}
-                                                aria-label="Baixar NFS-e"
-                                                className="rounded p-2 text-pf-blue hover:bg-pf-blue/10 transition-all font-bold text-xs"
-                                            >
-                                                NFS-E
-                                            </button>
-                                        ) : (
-                                            <button
-                                                onClick={(e) => { e.stopPropagation(); handleRevisar(inv.id); }}
-                                                aria-label={`Revisar pre-fatura ${inv.client}`}
-                                                className="flex items-center gap-1 rounded bg-pf-blue/10 px-2 py-1.5 text-xs font-bold text-pf-blue hover:bg-pf-blue hover:text-white transition-all"
-                                            >
-                                                <CheckSquare className="h-3 w-3" aria-hidden="true" />
-                                                Revisar
-                                            </button>
-                                        )}
+                                        <div className="flex items-center justify-end gap-1">
+                                            {inv.status === "Rascunho" && (
+                                                <>
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); handleSubmit(inv.id); }}
+                                                        title="Enviar para Aprovacao"
+                                                        className="flex items-center gap-1 rounded bg-pf-blue/10 px-2 py-1.5 text-xs font-bold text-pf-blue hover:bg-pf-blue hover:text-white transition-all"
+                                                    >
+                                                        <Send className="h-3 w-3" />
+                                                        Enviar
+                                                    </button>
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); handleCancel(inv.id); }}
+                                                        title="Cancelar"
+                                                        className="p-1.5 rounded hover:bg-red-50 transition-colors"
+                                                    >
+                                                        <Ban size={12} className="text-red-400" />
+                                                    </button>
+                                                </>
+                                            )}
+                                            {inv.status === "Pendente Aprovacao" && (
+                                                <>
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); handleApprove(inv.id); }}
+                                                        title="Aprovar"
+                                                        className="flex items-center gap-1 rounded bg-green-100 px-2 py-1.5 text-xs font-bold text-green-700 hover:bg-green-600 hover:text-white transition-all"
+                                                    >
+                                                        <CheckSquare className="h-3 w-3" />
+                                                        Aprovar
+                                                    </button>
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); setRejectModalId(inv.id); }}
+                                                        title="Rejeitar"
+                                                        className="flex items-center gap-1 rounded bg-red-100 px-2 py-1.5 text-xs font-bold text-red-700 hover:bg-red-600 hover:text-white transition-all"
+                                                    >
+                                                        <X className="h-3 w-3" />
+                                                        Rejeitar
+                                                    </button>
+                                                </>
+                                            )}
+                                            {(inv.status === "Faturado" || inv.status === "Aprovado") && (
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); handleDownloadNFSE(inv); }}
+                                                    className="rounded p-2 text-pf-blue hover:bg-pf-blue/10 transition-all font-bold text-xs"
+                                                >
+                                                    NFS-E
+                                                </button>
+                                            )}
+                                        </div>
                                     </td>}
                                 </tr>
                             ))

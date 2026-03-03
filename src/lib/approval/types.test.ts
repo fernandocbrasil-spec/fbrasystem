@@ -101,16 +101,20 @@ describe("RECEIVABLE_TRANSITIONS", () => {
 });
 
 describe("TIME_ENTRY_TRANSITIONS", () => {
-    it("pendente pode ser aprovado ou rejeitado", () => {
-        expect(TIME_ENTRY_TRANSITIONS.pendente).toEqual(["aprovado", "rejeitado"]);
+    it("rascunho pode ser submetido (pendente)", () => {
+        expect(TIME_ENTRY_TRANSITIONS.rascunho).toEqual(["pendente"]);
     });
 
-    it("aprovado pode ser faturado", () => {
-        expect(TIME_ENTRY_TRANSITIONS.aprovado).toEqual(["faturado"]);
+    it("pendente pode ser aprovado, rejeitado ou retratado (rascunho)", () => {
+        expect(TIME_ENTRY_TRANSITIONS.pendente).toEqual(["aprovado", "rejeitado", "rascunho"]);
     });
 
-    it("rejeitado pode voltar para pendente", () => {
-        expect(TIME_ENTRY_TRANSITIONS.rejeitado).toEqual(["pendente"]);
+    it("aprovado pode ser faturado ou reenviado para pendente", () => {
+        expect(TIME_ENTRY_TRANSITIONS.aprovado).toEqual(["faturado", "pendente"]);
+    });
+
+    it("rejeitado pode voltar para rascunho", () => {
+        expect(TIME_ENTRY_TRANSITIONS.rejeitado).toEqual(["rascunho"]);
     });
 
     it("faturado e terminal", () => {

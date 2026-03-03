@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -8,27 +8,15 @@ import { useToast } from "@/components/ui/toast";
 import { ReportToolbar, getDensityClasses, type ColumnDef, type Density, type FilterDef } from "@/components/ui/report-toolbar";
 import { Button, SearchInput } from "@/components/ui";
 import { Plus, FileEdit, Download, CheckCircle, Clock, ArrowRight } from "lucide-react";
+import { getProposals } from "@/lib/actions";
+import type { MockProposal } from "@/lib/mock-data";
 
-type ProposalStatus = "Em Revisão" | "Aprovada";
+type ProposalStatus = "Em Revisao" | "Aprovada";
 
-type Proposal = {
-    id: string;
-    title: string;
-    client: string;
-    status: ProposalStatus;
-    date: string;
-    value: string;
-};
-
-const INITIAL_PROPOSALS: Proposal[] = [
-    { id: "1", title: "Assessoria Contábil e Fiscal", client: "Grupo Sequoia", status: "Em Revisão", date: "26/02/2026", value: "R$ 11.150,00" },
-    { id: "2", title: "Planejamento Tributário", client: "TechCorp BR", status: "Aprovada", date: "20/02/2026", value: "R$ 45.000,00" },
-];
-
-const STORAGE_KEY = "pf-proposals";
+type Proposal = MockProposal;
 
 const statusStyle: Record<ProposalStatus, string> = {
-    "Em Revisão": "bg-orange-100 text-orange-700",
+    "Em Revisao": "bg-orange-100 text-orange-700",
     "Aprovada": "bg-green-100 text-green-700",
 };
 
@@ -47,24 +35,10 @@ const ALL_COLUMN_KEYS = TABLE_COLUMNS.map((c) => c.key);
 
 const FILTER_DEFS: FilterDef[] = [
     { key: "status", label: "Status", options: [
-        { value: "Em Revisão", label: "Em Revisão" },
+        { value: "Em Revisao", label: "Em Revisao" },
         { value: "Aprovada", label: "Aprovada" },
     ]},
 ];
-
-function loadProposals(): Proposal[] {
-    if (typeof window === "undefined") return INITIAL_PROPOSALS;
-    try {
-        const stored = localStorage.getItem(STORAGE_KEY);
-        if (stored) {
-            const parsed = JSON.parse(stored) as Proposal[];
-            if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-        }
-    } catch {
-        // ignore parse errors
-    }
-    return INITIAL_PROPOSALS;
-}
 
 function generateProposalBlob(proposal: Proposal): string {
     return [
@@ -114,41 +88,20 @@ export default function ProposalsPage() {
     const router = useRouter();
     const { toast } = useToast();
 
-    const [proposals, setProposals] = useState<Proposal[]>(INITIAL_PROPOSALS);
+    const [proposals, setProposals] = useState<Proposal[]>([]);
     const [search, setSearch] = useState("");
     const [statusFilter, setStatusFilter] = useState<string[]>([]);
     const [visibleColumns, setVisibleColumns] = useState<string[]>(ALL_COLUMN_KEYS);
     const [density, setDensity] = useState<Density>("compact");
 
-    // Load proposals from localStorage on mount and listen for storage events
-    useEffect(() => {
-        setProposals(loadProposals());
-
-        const handleStorage = (e: StorageEvent) => {
-            if (e.key === STORAGE_KEY) {
-                setProposals(loadProposals());
-            }
-        };
-
-        // Also check for new drafts saved from the editor
-        const handleFocus = () => {
-            setProposals(loadProposals());
-        };
-
-        window.addEventListener("storage", handleStorage);
-        window.addEventListener("focus", handleFocus);
-        return () => {
-            window.removeEventListener("storage", handleStorage);
-            window.removeEventListener("focus", handleFocus);
-        };
+    const loadData = useCallback(async () => {
+        const result = await getProposals();
+        setProposals(result);
     }, []);
 
-    // Persist proposals whenever they change
     useEffect(() => {
-        if (typeof window !== "undefined") {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(proposals));
-        }
-    }, [proposals]);
+        loadData();
+    }, [loadData]);
 
     const densityClasses = getDensityClasses(density);
 

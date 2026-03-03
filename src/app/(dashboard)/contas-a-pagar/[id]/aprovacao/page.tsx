@@ -1,21 +1,41 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { PageHeader } from "@/components/ui/page-header";
 import { ApprovalBadge } from "@/components/approval/approval-badge";
-import { MOCK_PAYABLES } from "@/lib/mock-data";
+import { getPayables } from "@/lib/actions";
+import type { MockPayable } from "@/lib/mock-data";
 import { ArrowLeft, CheckCircle, XCircle, CreditCard, User, Calendar, Tag } from "lucide-react";
 import Link from "next/link";
 
 export default function ContasAPagarAprovacaoDetalhePage() {
     const { id } = useParams<{ id: string }>();
     const router = useRouter();
-    const item = MOCK_PAYABLES.find((p) => p.id === id);
+    const [item, setItem] = useState<MockPayable | null>(null);
+    const [loading, setLoading] = useState(true);
 
-    const [status, setStatus] = useState(item?.approvalStatus ?? "pendente");
+    const loadItem = useCallback(async () => {
+        const all = await getPayables();
+        setItem(all.find((p) => p.id === id) ?? null);
+        setLoading(false);
+    }, [id]);
+
+    useEffect(() => {
+        loadItem();
+    }, [loadItem]);
+
+    const [status, setStatus] = useState("pendente");
     const [rejectComment, setRejectComment] = useState("");
     const [showRejectForm, setShowRejectForm] = useState(false);
+
+    useEffect(() => {
+        if (item) setStatus(item.approvalStatus);
+    }, [item]);
+
+    if (loading) {
+        return <div className="py-12 text-center"><p className="text-sm text-pf-grey">Carregando...</p></div>;
+    }
 
     if (!item) {
         return (

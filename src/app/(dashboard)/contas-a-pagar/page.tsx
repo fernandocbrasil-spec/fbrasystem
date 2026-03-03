@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ReportToolbar, getDensityClasses, type ColumnDef, type Density, type FilterDef } from "@/components/ui/report-toolbar";
 import { ApprovalBadge } from "@/components/approval/approval-badge";
-import { MOCK_PAYABLES } from "@/lib/mock-data";
+import { getPayables, createPayable } from "@/lib/actions";
 import { useToast } from "@/components/ui/toast";
 import { Button, SearchInput } from "@/components/ui";
 import { Plus, X } from "lucide-react";
@@ -30,7 +30,8 @@ const CATEGORY_OPTIONS = [
 
 export default function ContasAPagarPage() {
     const { toast } = useToast();
-    const [payables, setPayables] = useState<MockPayable[]>([...MOCK_PAYABLES]);
+    const [payables, setPayables] = useState<MockPayable[]>([]);
+    const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState("");
     const [catFilter, setCatFilter] = useState<string[]>([]);
     const [visibleColumns, setVisibleColumns] = useState<string[]>(["fornecedor", "categoria", "vencimento", "valor", "status"]);
@@ -42,6 +43,20 @@ export default function ContasAPagarPage() {
     const [newCategoria, setNewCategoria] = useState(CATEGORY_OPTIONS[0]);
     const [newValor, setNewValor] = useState("");
     const [newVencimento, setNewVencimento] = useState("");
+
+    const loadPayables = useCallback(async () => {
+        setLoading(true);
+        try {
+            const data = await getPayables();
+            setPayables(data);
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        loadPayables();
+    }, [loadPayables]);
 
     const densityClasses = getDensityClasses(density);
 
@@ -91,7 +106,7 @@ export default function ContasAPagarPage() {
         return `R$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
     };
 
-    const handleAddExpense = () => {
+    const handleAddExpense = async () => {
         if (!newFornecedor.trim()) {
             toast("Informe o nome do fornecedor.", "warning");
             return;
@@ -115,24 +130,25 @@ export default function ContasAPagarPage() {
             formattedValue = `R$ ${formattedValue}`;
         }
 
-        const newPayable: MockPayable = {
-            id: `new-${Date.now()}`,
+        const result = await createPayable({
             fornecedor: newFornecedor.trim(),
             categoria: newCategoria,
             valor: formattedValue,
             vencimento: formattedDate,
-            status: "Pendente",
-            approvalStatus: "pendente",
-            submittedBy: "Financeiro",
-        };
+        });
 
-        setPayables((prev) => [newPayable, ...prev]);
+        if (!result.success) {
+            toast(result.error ?? "Erro ao criar despesa.", "warning");
+            return;
+        }
+
         setNewFornecedor("");
         setNewValor("");
         setNewVencimento("");
         setNewCategoria(CATEGORY_OPTIONS[0]);
         setShowForm(false);
         toast("Despesa adicionada com sucesso.");
+        loadPayables();
     };
 
     return (

@@ -39,6 +39,7 @@ import {
     LayoutGrid,
     Pin,
     Truck,
+    TrendingUp,
     X,
     LogOut,
     Crown,
@@ -79,6 +80,7 @@ const navGroups: NavGroup[] = [
         icon: Users,
         items: [
             { label: "Leads", href: "/leads", icon: Users,
+                sub: [{ label: "Follow-up Inbox", href: "/follow-up", icon: ClipboardCheck }],
                 actions: [{ label: "Novo Lead", href: "/leads", icon: Plus, variant: "primary" }],
             },
             { label: "Propostas", href: "/propostas", icon: FileText,
@@ -116,6 +118,7 @@ const navGroups: NavGroup[] = [
                 sub: [
                     { label: "Conciliacoes Bancarias", href: "/conciliacao-bancaria", icon: Landmark },
                     { label: "Fluxo de Caixa", href: "/fluxo-de-caixa", icon: LineChart },
+                    { label: "Previsibilidade", href: "/previsibilidade", icon: TrendingUp },
                 ],
             },
         ],

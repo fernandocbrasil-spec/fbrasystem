@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import {
     Receipt,
@@ -12,6 +12,7 @@ import {
     TrendingDown,
     CreditCard,
     CalendarDays,
+    CalendarX2,
     Bell,
     AlertTriangle,
     CheckCircle2,
@@ -19,37 +20,49 @@ import {
     Library,
     type LucideIcon,
 } from "lucide-react";
-import {
-    MOCK_PENDING_APPROVALS,
-    MOCK_NOTIFICATIONS,
-    MOCK_EVENTS,
-    type MockPendingApproval,
-    type MockNotification,
-    type MockEvent,
-} from "@/lib/mock-data";
+import { getPendingApprovals, getNotifications, getEvents, getFollowUpDigest, fetchDashboardKPIs, fetchCashflowChart } from "@/lib/actions";
+import type { MockPendingApproval, MockNotification, MockEvent } from "@/lib/mock-data";
+import type { FollowUpDigest } from "@/lib/actions/leads";
+import type { DashboardKPIs, CashflowChartData } from "@/lib/billing/forecast";
+import { fmtKpi } from "@/lib/db/format";
 
 // ==================== FINANCIAL SUMMARY (single card) ====================
 
-const KPIS = [
+const STATIC_KPIS = [
     { label: "Faturado", value: "R$ 287k", trend: "+12,4%", up: true, icon: Receipt, color: "text-pf-blue" },
     { label: "Recebido", value: "R$ 218k", trend: "+8,2%", up: true, icon: Library, color: "text-emerald-600" },
     { label: "Em Aberto", value: "R$ 105k", trend: "-3,1%", up: false, icon: Clock, color: "text-amber-600" },
     { label: "Vencido", value: "R$ 55k", trend: "+18%", up: false, icon: AlertTriangle, color: "text-red-500" },
 ];
 
-function FinancialSummary() {
+function formatTrend(value: number): string {
+    return `${value >= 0 ? "+" : ""}${value.toFixed(1)}%`;
+}
+
+function FinancialSummary({ kpis }: { kpis: DashboardKPIs | null }) {
+    const today = new Date();
+    const MESES = ["Janeiro", "Fevereiro", "Marco", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+    const monthLabel = `${MESES[today.getMonth()]} ${today.getFullYear()}`;
+
+    const items = kpis ? [
+        { label: "Faturado", value: fmtKpi(kpis.faturado), trend: formatTrend(kpis.faturadoTrend), up: kpis.faturadoTrend >= 0, icon: Receipt, color: "text-pf-blue" },
+        { label: "Recebido", value: fmtKpi(kpis.recebido), trend: formatTrend(kpis.recebidoTrend), up: kpis.recebidoTrend >= 0, icon: Library, color: "text-emerald-600" },
+        { label: "Em Aberto", value: fmtKpi(kpis.emAberto), trend: formatTrend(kpis.emAbertoTrend), up: kpis.emAbertoTrend <= 0, icon: Clock, color: "text-amber-600" },
+        { label: "Vencido", value: fmtKpi(kpis.vencido), trend: formatTrend(kpis.vencidoTrend), up: kpis.vencidoTrend <= 0, icon: AlertTriangle, color: "text-red-500" },
+    ] : STATIC_KPIS;
+
     return (
         <div className="bg-white rounded-xl shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-5">
             <div className="flex items-center justify-between mb-4">
                 <h3 className="text-[10px] font-bold uppercase tracking-[0.15em] text-pf-grey/70">
-                    Resumo Financeiro — Marco 2026
+                    Resumo Financeiro — {monthLabel}
                 </h3>
-                <Link href="/financeiro" className="text-[10px] text-pf-blue font-bold hover:text-pf-black flex items-center gap-1 transition-colors">
-                    Detalhar <ArrowUpRight size={10} />
+                <Link href="/previsibilidade" className="text-[10px] text-pf-blue font-bold hover:text-pf-black flex items-center gap-1 transition-colors">
+                    Previsibilidade <ArrowUpRight size={10} />
                 </Link>
             </div>
             <div className="grid grid-cols-4 divide-x divide-pf-grey/10">
-                {KPIS.map((kpi) => {
+                {items.map((kpi) => {
                     const Icon = kpi.icon;
                     return (
                         <div key={kpi.label} className="px-4 first:pl-0 last:pr-0">
@@ -135,7 +148,7 @@ function PipelineFunnel() {
 
 type CashflowLine = "receita" | "despesa" | "projecao";
 
-const CASHFLOW_DATA = {
+const STATIC_CASHFLOW = {
     months: ["Set", "Out", "Nov", "Dez", "Jan", "Fev"],
     receita:  [180, 220, 195, 280, 245, 310],
     despesa:  [120, 155, 140, 190, 175, 205],
@@ -162,7 +175,8 @@ function buildSmoothPath(values: number[], maxVal: number, chartW: number, chart
     return { path, points };
 }
 
-function CashflowChart() {
+function CashflowChart({ data }: { data: CashflowChartData | null }) {
+    const chartData = data ?? STATIC_CASHFLOW;
     const [activeLines, setActiveLines] = useState<Set<CashflowLine>>(new Set(["receita", "despesa", "projecao"]));
 
     const toggleLine = (line: CashflowLine) => {
@@ -179,7 +193,7 @@ function CashflowChart() {
 
     const allValues = (Object.keys(LINE_CONFIGS) as CashflowLine[])
         .filter((k) => activeLines.has(k))
-        .flatMap((k) => CASHFLOW_DATA[k]);
+        .flatMap((k) => chartData[k]);
     const maxVal = Math.max(...allValues) * 1.15;
     const chartH = 140;
     const chartW = 100;
@@ -188,7 +202,7 @@ function CashflowChart() {
         key,
         config: LINE_CONFIGS[key],
         active: activeLines.has(key),
-        ...buildSmoothPath(CASHFLOW_DATA[key], maxVal, chartW, chartH),
+        ...buildSmoothPath(chartData[key], maxVal, chartW, chartH),
     }));
 
     return (
@@ -247,7 +261,7 @@ function CashflowChart() {
                     ))}
                     {/* Area fill for receita */}
                     {activeLines.has("receita") && (() => {
-                        const { path } = buildSmoothPath(CASHFLOW_DATA.receita, maxVal, chartW, chartH);
+                        const { path } = buildSmoothPath(chartData.receita, maxVal, chartW, chartH);
                         return <path d={`${path} L ${chartW} ${chartH} L 0 ${chartH} Z`} fill="url(#receitaGrad)" />;
                     })()}
                     {/* Lines */}
@@ -282,7 +296,7 @@ function CashflowChart() {
                 </svg>
                 {/* Month labels */}
                 <div className="absolute bottom-0 left-0 right-0 flex justify-between translate-y-5">
-                    {CASHFLOW_DATA.months.map((m) => (
+                    {chartData.months.map((m) => (
                         <span key={m} className="text-[9px] font-bold text-pf-grey/40 uppercase">{m}</span>
                     ))}
                 </div>
@@ -343,9 +357,33 @@ export default function DashboardPage() {
     const MESES = ["Janeiro", "Fevereiro", "Marco", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
     const dateStr = `${DIAS[today.getDay()]}, ${String(today.getDate()).padStart(2, "0")} de ${MESES[today.getMonth()]} de ${today.getFullYear()}`;
 
-    const pendingItems = MOCK_PENDING_APPROVALS;
-    const events = MOCK_EVENTS;
-    const notifications = MOCK_NOTIFICATIONS;
+    const [pendingItems, setPendingItems] = useState<MockPendingApproval[]>([]);
+    const [events, setEvents] = useState<MockEvent[]>([]);
+    const [notifications, setNotifications] = useState<MockNotification[]>([]);
+    const [followUp, setFollowUp] = useState<FollowUpDigest>({ overdue: 0, today: 0, thisWeek: 0, noDate: 0, stale: 0, total: 0 });
+    const [kpis, setKpis] = useState<DashboardKPIs | null>(null);
+    const [cashflow, setCashflow] = useState<CashflowChartData | null>(null);
+
+    const loadData = useCallback(async () => {
+        const [p, e, n, f, k, c] = await Promise.all([
+            getPendingApprovals(),
+            getEvents(),
+            getNotifications(),
+            getFollowUpDigest(),
+            fetchDashboardKPIs(),
+            fetchCashflowChart(),
+        ]);
+        setPendingItems(p);
+        setEvents(e);
+        setNotifications(n);
+        setFollowUp(f);
+        setKpis(k);
+        setCashflow(c);
+    }, []);
+
+    useEffect(() => {
+        loadData();
+    }, [loadData]);
 
     return (
         <div className="max-w-[1400px] mx-auto space-y-5">
@@ -359,6 +397,57 @@ export default function DashboardPage() {
                     {dateStr}
                 </p>
             </div>
+
+            {/* ── FOLLOW-UP ALERT (governance) ── */}
+            {followUp.total > 0 && (
+                <div className="bg-white rounded-xl p-4 shadow-[0_1px_3px_rgba(0,0,0,0.04)] border-l-[3px] border-red-400">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center">
+                                <AlertTriangle size={16} className="text-red-500" />
+                            </div>
+                            <div>
+                                <h3 className="text-xs font-bold text-pf-black">Follow-up Pendente</h3>
+                                <p className="text-[10px] text-pf-grey/50 mt-0.5">
+                                    {followUp.total} lead{followUp.total > 1 ? "s" : ""} precisando de atencao
+                                </p>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-4">
+                            {followUp.overdue > 0 && (
+                                <div className="flex items-center gap-1.5">
+                                    <span className="w-2 h-2 rounded-full bg-red-500" />
+                                    <span className="text-[10px] font-bold text-red-600">{followUp.overdue} atrasado{followUp.overdue > 1 ? "s" : ""}</span>
+                                </div>
+                            )}
+                            {followUp.today > 0 && (
+                                <div className="flex items-center gap-1.5">
+                                    <span className="w-2 h-2 rounded-full bg-amber-500" />
+                                    <span className="text-[10px] font-bold text-amber-600">{followUp.today} hoje</span>
+                                </div>
+                            )}
+                            {followUp.noDate > 0 && (
+                                <div className="flex items-center gap-1.5">
+                                    <span className="w-2 h-2 rounded-full bg-violet-500" />
+                                    <span className="text-[10px] font-bold text-violet-600">{followUp.noDate} sem data</span>
+                                </div>
+                            )}
+                            {followUp.stale > 0 && (
+                                <div className="flex items-center gap-1.5">
+                                    <span className="w-2 h-2 rounded-full bg-orange-500" />
+                                    <span className="text-[10px] font-bold text-orange-600">{followUp.stale} stale</span>
+                                </div>
+                            )}
+                            <Link
+                                href="/follow-up"
+                                className="ml-2 text-[10px] text-pf-blue font-bold hover:text-pf-black flex items-center gap-1 transition-colors"
+                            >
+                                Ver inbox <ArrowUpRight size={10} />
+                            </Link>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* ── ROW 1: Agenda + Pendencias + Avisos ── */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -466,12 +555,12 @@ export default function DashboardPage() {
             </div>
 
             {/* ── ROW 2: Financial Summary (single card) ── */}
-            <FinancialSummary />
+            <FinancialSummary kpis={kpis} />
 
             {/* ── ROW 3: Pipeline Funnel + Cashflow Chart ── */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <PipelineFunnel />
-                <CashflowChart />
+                <CashflowChart data={cashflow} />
             </div>
         </div>
     );

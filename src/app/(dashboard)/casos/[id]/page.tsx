@@ -1,21 +1,37 @@
 "use client"
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { PageHeader } from "@/components/ui/page-header";
 import { useToast } from "@/components/ui/toast";
-import { Clock, CheckSquare, FileText, User, ArrowLeft, Plus, X } from "lucide-react";
+import { Clock, CheckSquare, FileText, User, ArrowLeft, Plus, X, ChevronRight, AlertTriangle } from "lucide-react";
 import Link from "next/link";
+import {
+    getTasksForCase,
+    createTask,
+    updateTaskStatus,
+    deleteTask,
+    getCapStatusAction,
+} from "@/lib/actions";
+import type { TaskItem } from "@/lib/actions/tasks";
+import type { CapStatus } from "@/lib/billing/cap";
+
+// ─── Priority mapping ───────────────────────────────────────────────────────
 
 type Priority = "Alta" | "Media" | "Baixa";
-
-type Task = {
-    id: string;
-    title: string;
-    priority: Priority;
-    column: "todo" | "in_progress" | "done";
-    dueDate?: string;
-    assignee?: string;
+const PRIORITY_STYLES: Record<Priority, string> = {
+    Alta: "bg-red-100 text-red-700",
+    Media: "bg-orange-100 text-orange-700",
+    Baixa: "bg-blue-100 text-blue-700",
 };
+
+const DB_TO_UI_PRIORITY: Record<string, Priority> = {
+    urgent: "Alta", high: "Alta", medium: "Media", low: "Baixa",
+};
+const UI_TO_DB_PRIORITY: Record<Priority, string> = {
+    Alta: "high", Media: "medium", Baixa: "low",
+};
+
+// ─── Local time entry type (kept for inline form) ───────────────────────────
 
 type TimeEntry = {
     id: string;
@@ -24,18 +40,6 @@ type TimeEntry = {
     description: string;
     time: string;
 };
-
-const PRIORITY_STYLES: Record<Priority, string> = {
-    Alta: "bg-red-100 text-red-700",
-    Media: "bg-orange-100 text-orange-700",
-    Baixa: "bg-blue-100 text-blue-700",
-};
-
-const INITIAL_TASKS: Task[] = [
-    { id: "t-1", title: "Revisao documentos IRPJ Marco", priority: "Alta", column: "todo", dueDate: "05/03" },
-    { id: "t-2", title: "Agendar call checkpoint mensal", priority: "Baixa", column: "todo" },
-    { id: "t-3", title: "Elaboracao planilhas Intercompany", priority: "Media", column: "in_progress", assignee: "CO" },
-];
 
 const INITIAL_TIME_ENTRIES: TimeEntry[] = [
     { id: "te-1", date: "25/02/2026", professional: "Carlos Oliveira", description: "Setup do projeto e coleta de balancetes mensais.", time: "02:30" },
@@ -55,18 +59,39 @@ function formatMinutes(total: number): string {
     return `${h}:${m}`;
 }
 
+// ─── Cap threshold colors ───────────────────────────────────────────────────
+
+function capColor(threshold: string): string {
+    if (threshold === "ok") return "bg-emerald-500";
+    if (threshold === "warning") return "bg-amber-500";
+    return "bg-red-500";
+}
+
+function capTextColor(threshold: string): string {
+    if (threshold === "ok") return "text-emerald-600";
+    if (threshold === "warning") return "text-amber-600";
+    return "text-red-600";
+}
+
+// ─── Page ───────────────────────────────────────────────────────────────────
+
 export default function CaseDetailsPage({ params }: { params: { id: string } }) {
     const [activeTab, setActiveTab] = useState("tarefas");
     const { toast } = useToast();
 
-    // Tasks state
-    const [tasks, setTasks] = useState<Task[]>(INITIAL_TASKS);
+    // Tasks state (server-persisted)
+    const [tasks, setTasks] = useState<TaskItem[]>([]);
+    const [tasksLoading, setTasksLoading] = useState(true);
     const [showNewTask, setShowNewTask] = useState(false);
     const [newTaskTitle, setNewTaskTitle] = useState("");
     const [newTaskPriority, setNewTaskPriority] = useState<Priority>("Media");
+    const [guardError, setGuardError] = useState<string | null>(null);
 
-    // Time entries state
-    const [timeEntries, setTimeEntries] = useState<TimeEntry[]>(INITIAL_TIME_ENTRIES);
+    // Cap status
+    const [capStatus, setCapStatus] = useState<CapStatus | null>(null);
+
+    // Time entries state (local for now)
+    const [localTimeEntries, setLocalTimeEntries] = useState<TimeEntry[]>(INITIAL_TIME_ENTRIES);
     const profRef = useRef<HTMLSelectElement>(null);
     const dateRef = useRef<HTMLInputElement>(null);
     const timeRef = useRef<HTMLInputElement>(null);
@@ -79,6 +104,28 @@ export default function CaseDetailsPage({ params }: { params: { id: string } }) 
         status: "Ativo",
     };
 
+    // ── Load tasks from DB ──
+    const loadTasks = useCallback(async () => {
+        try {
+            const data = await getTasksForCase(params.id);
+            setTasks(data);
+        } finally {
+            setTasksLoading(false);
+        }
+    }, [params.id]);
+
+    // ── Load cap status ──
+    const loadCap = useCallback(async () => {
+        const today = new Date().toISOString().split("T")[0];
+        const cap = await getCapStatusAction(params.id, today);
+        setCapStatus(cap);
+    }, [params.id]);
+
+    useEffect(() => {
+        loadTasks();
+        loadCap();
+    }, [loadTasks, loadCap]);
+
     const TABS = [
         { id: "visao_geral", label: "Visao Geral", icon: <FileText className="h-4 w-4" /> },
         { id: "tarefas", label: "Tarefas (Kanban)", icon: <CheckSquare className="h-4 w-4" /> },
@@ -87,29 +134,54 @@ export default function CaseDetailsPage({ params }: { params: { id: string } }) 
     ];
 
     // Derived counts
-    const todoTasks = tasks.filter((t) => t.column === "todo");
-    const inProgressTasks = tasks.filter((t) => t.column === "in_progress");
-    const doneTasks = tasks.filter((t) => t.column === "done");
+    const todoTasks = tasks.filter((t) => t.status === "todo");
+    const inProgressTasks = tasks.filter((t) => t.status === "in_progress");
+    const doneTasks = tasks.filter((t) => t.status === "done");
 
-    const totalMinutes = timeEntries.reduce((acc, e) => acc + parseTimeToMinutes(e.time), 0);
+    const totalMinutes = localTimeEntries.reduce((acc, e) => acc + parseTimeToMinutes(e.time), 0);
 
-    // Handlers
-    const handleAddTask = () => {
+    // ── Handlers ──
+
+    const handleAddTask = async () => {
         if (!newTaskTitle.trim()) {
             toast("Informe o titulo da tarefa.", "warning");
             return;
         }
-        const newTask: Task = {
-            id: `t-${Date.now()}`,
+        const result = await createTask({
+            caseId: params.id,
             title: newTaskTitle.trim(),
-            priority: newTaskPriority,
-            column: "todo",
-        };
-        setTasks((prev) => [...prev, newTask]);
-        setNewTaskTitle("");
-        setNewTaskPriority("Media");
-        setShowNewTask(false);
-        toast("Tarefa adicionada com sucesso.");
+            priority: UI_TO_DB_PRIORITY[newTaskPriority] as "low" | "medium" | "high" | "urgent",
+        });
+        if (result.success) {
+            setNewTaskTitle("");
+            setNewTaskPriority("Media");
+            setShowNewTask(false);
+            toast("Tarefa adicionada com sucesso.");
+            loadTasks();
+        } else {
+            toast(result.error ?? "Erro ao criar tarefa", "warning");
+        }
+    };
+
+    const handleMoveTask = async (taskId: string, newStatus: string) => {
+        setGuardError(null);
+        const result = await updateTaskStatus(taskId, newStatus);
+        if (result.success) {
+            loadTasks();
+        } else {
+            setGuardError(result.error ?? "Erro ao mover tarefa");
+            toast(result.error ?? "Erro ao mover tarefa", "warning");
+        }
+    };
+
+    const handleDeleteTask = async (taskId: string) => {
+        const result = await deleteTask(taskId);
+        if (result.success) {
+            loadTasks();
+            toast("Tarefa excluida.");
+        } else {
+            toast(result.error ?? "Erro ao excluir tarefa", "warning");
+        }
     };
 
     const handleLancarHoras = () => {
@@ -129,7 +201,6 @@ export default function CaseDetailsPage({ params }: { params: { id: string } }) 
             return;
         }
 
-        // Format date from yyyy-mm-dd to dd/mm/yyyy
         const [y, m, d] = date.split("-");
         const formattedDate = `${d}/${m}/${y}`;
 
@@ -140,14 +211,37 @@ export default function CaseDetailsPage({ params }: { params: { id: string } }) 
             description: desc.trim(),
             time,
         };
-        setTimeEntries((prev) => [...prev, entry]);
+        setLocalTimeEntries((prev) => [...prev, entry]);
 
-        // Reset form
         if (dateRef.current) dateRef.current.value = "";
         if (timeRef.current) timeRef.current.value = "";
         if (descRef.current) descRef.current.value = "";
 
         toast("Horas lancadas com sucesso.");
+    };
+
+    // ── Task Card Component ──
+    const TaskCard = ({ task, actions }: { task: TaskItem; actions?: React.ReactNode }) => {
+        const priority = DB_TO_UI_PRIORITY[task.priority] ?? "Media";
+        return (
+            <div className="cursor-pointer rounded-lg border border-pf-grey/10 bg-white p-4 shadow-sm hover:border-pf-blue/40 group">
+                <div className="flex items-start justify-between">
+                    <p className={`font-sans text-sm font-semibold text-pf-black mb-2 ${task.status === "done" ? "line-through opacity-70" : ""}`}>{task.title}</p>
+                    {actions}
+                </div>
+                <div className="flex items-center justify-between mt-3 text-xs text-pf-grey">
+                    <div className={`rounded px-2 py-0.5 font-bold ${PRIORITY_STYLES[priority]}`}>{priority}</div>
+                    <div className="flex items-center gap-2">
+                        {task.dueDate && (
+                            <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> {task.dueDate.slice(5).split("-").reverse().join("/")}</span>
+                        )}
+                        {task.assigneeInitials && (
+                            <div className="flex h-6 w-6 items-center justify-center rounded-full bg-pf-black text-white text-[10px] ring-2 ring-white">{task.assigneeInitials}</div>
+                        )}
+                    </div>
+                </div>
+            </div>
+        );
     };
 
     return (
@@ -186,9 +280,78 @@ export default function CaseDetailsPage({ params }: { params: { id: string } }) 
 
             <div className="mt-6">
 
+                {/* VISAO GERAL */}
+                {activeTab === "visao_geral" && (
+                    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                        {/* Cap Consumption Widget */}
+                        {capStatus && !capStatus.isUncapped && (
+                            <div className="rounded-lg border border-pf-grey/10 bg-white p-5 shadow-sm">
+                                <h3 className="text-[10px] font-bold uppercase tracking-[0.12em] text-pf-grey/50 mb-3">Cap de Horas — {capStatus.period}</h3>
+                                <div className="flex items-end gap-4 mb-3">
+                                    <p className={`font-sans text-2xl font-bold ${capTextColor(capStatus.threshold)}`}>
+                                        {Math.round(capStatus.percentage)}%
+                                    </p>
+                                    <p className="text-sm text-pf-grey/60 mb-0.5">
+                                        {Math.round(capStatus.usedMinutes / 60)}h / {Math.round(capStatus.capMinutes / 60)}h
+                                    </p>
+                                    {capStatus.rolloverMinutes > 0 && (
+                                        <p className="text-[10px] text-pf-grey/40 mb-1">
+                                            (inclui {Math.round(capStatus.rolloverMinutes / 60)}h rollover)
+                                        </p>
+                                    )}
+                                </div>
+                                {/* Progress bar */}
+                                <div className="w-full h-2 bg-pf-grey/10 rounded-full overflow-hidden">
+                                    <div
+                                        className={`h-full rounded-full transition-all ${capColor(capStatus.threshold)}`}
+                                        style={{ width: `${Math.min(capStatus.percentage, 100)}%` }}
+                                    />
+                                </div>
+                                {capStatus.threshold !== "ok" && (
+                                    <p className={`text-[10px] font-semibold mt-2 ${capTextColor(capStatus.threshold)}`}>
+                                        {capStatus.threshold === "warning" && "Atencao: Cap acima de 80%"}
+                                        {capStatus.threshold === "soft_block" && "Cap atingido — novos apontamentos exigem justificativa"}
+                                        {capStatus.threshold === "hard_block" && "Cap excedido (>110%) — justificativa obrigatoria"}
+                                    </p>
+                                )}
+                            </div>
+                        )}
+                        {capStatus?.isUncapped && (
+                            <div className="rounded-lg border border-pf-grey/10 bg-white p-5 shadow-sm">
+                                <h3 className="text-[10px] font-bold uppercase tracking-[0.12em] text-pf-grey/50 mb-2">Cap de Horas</h3>
+                                <p className="text-sm text-pf-grey/60">Sem cap definido para este caso.</p>
+                            </div>
+                        )}
+
+                        {/* Task summary */}
+                        <div className="grid grid-cols-3 gap-3">
+                            {[
+                                { label: "A Fazer", count: todoTasks.length, color: "text-pf-grey" },
+                                { label: "Em Andamento", count: inProgressTasks.length, color: "text-pf-blue" },
+                                { label: "Concluido", count: doneTasks.length, color: "text-emerald-600" },
+                            ].map((kpi) => (
+                                <div key={kpi.label} className="bg-white rounded-xl p-4 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+                                    <span className="text-[9px] font-bold uppercase tracking-[0.12em] text-pf-grey/50">{kpi.label}</span>
+                                    <p className={`font-sans text-2xl font-bold ${kpi.color} mt-1`}>{kpi.count}</p>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
                 {/* KANBAN TAREFAS */}
                 {activeTab === "tarefas" && (
                     <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
+
+                        {/* Guard error banner */}
+                        {guardError && (
+                            <div className="flex items-center gap-2 rounded-lg bg-red-50 border border-red-200 px-4 py-3">
+                                <AlertTriangle size={14} className="text-red-600 shrink-0" />
+                                <p className="text-xs font-semibold text-red-700">{guardError}</p>
+                                <button onClick={() => setGuardError(null)} className="ml-auto"><X size={12} className="text-red-400" /></button>
+                            </div>
+                        )}
+
                         <div className="flex justify-end">
                             <button
                                 onClick={() => setShowNewTask((v) => !v)}
@@ -234,72 +397,100 @@ export default function CaseDetailsPage({ params }: { params: { id: string } }) 
                             </div>
                         )}
 
-                        <div className="flex h-[calc(100vh-20rem)] w-full gap-6 overflow-x-auto pb-4">
-                            {/* TODO */}
-                            <div className="flex min-w-[320px] max-w-[320px] flex-col rounded-lg bg-gray-50/50 border border-pf-grey/20 p-4">
-                                <div className="mb-4 flex items-center justify-between">
-                                    <h3 className="font-sans text-sm font-bold uppercase tracking-wider text-pf-black">A Fazer <span className="text-pf-grey ml-1 text-xs font-normal">{todoTasks.length}</span></h3>
-                                </div>
-                                <div className="flex flex-col gap-3">
-                                    {todoTasks.map((task) => (
-                                        <div key={task.id} className="cursor-pointer rounded-lg border border-pf-grey/10 bg-white p-4 shadow-sm hover:border-pf-blue/40">
-                                            <p className="font-sans text-sm font-semibold text-pf-black mb-2">{task.title}</p>
-                                            <div className="flex items-center justify-between mt-3 text-xs text-pf-grey">
-                                                <div className={`rounded px-2 py-0.5 font-bold ${PRIORITY_STYLES[task.priority]}`}>{task.priority}</div>
-                                                {task.dueDate && (
-                                                    <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> {task.dueDate}</span>
-                                                )}
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
+                        {/* Loading */}
+                        {tasksLoading && (
+                            <div className="flex items-center justify-center py-16">
+                                <div className="w-5 h-5 border-2 border-pf-blue border-t-transparent rounded-full animate-spin" />
                             </div>
+                        )}
 
-                            {/* IN PROGRESS */}
-                            <div className="flex min-w-[320px] max-w-[320px] flex-col rounded-lg bg-blue-50/50 border border-pf-blue/20 p-4">
-                                <div className="mb-4 flex items-center justify-between">
-                                    <h3 className="font-sans text-sm font-bold uppercase tracking-wider text-pf-blue">Em Andamento <span className="text-pf-blue/70 ml-1 text-xs font-normal">{inProgressTasks.length}</span></h3>
-                                </div>
-                                <div className="flex flex-col gap-3">
-                                    {inProgressTasks.map((task) => (
-                                        <div key={task.id} className="cursor-pointer rounded-lg border border-pf-blue/30 bg-white p-4 shadow-sm ring-1 ring-pf-blue/10">
-                                            <p className="font-sans text-sm font-semibold text-pf-black mb-2">{task.title}</p>
-                                            <div className="flex items-center justify-between mt-3 text-xs text-pf-grey">
-                                                <div className={`rounded px-2 py-0.5 font-bold ${PRIORITY_STYLES[task.priority]}`}>{task.priority}</div>
-                                                {task.assignee && (
-                                                    <div className="flex -space-x-1">
-                                                        <div className="flex h-6 w-6 items-center justify-center rounded-full bg-pf-black text-white text-[10px] ring-2 ring-white">{task.assignee}</div>
+                        {!tasksLoading && (
+                            <div className="flex h-[calc(100vh-20rem)] w-full gap-6 overflow-x-auto pb-4">
+                                {/* TODO */}
+                                <div className="flex min-w-[320px] max-w-[320px] flex-col rounded-lg bg-gray-50/50 border border-pf-grey/20 p-4">
+                                    <div className="mb-4 flex items-center justify-between">
+                                        <h3 className="font-sans text-sm font-bold uppercase tracking-wider text-pf-black">A Fazer <span className="text-pf-grey ml-1 text-xs font-normal">{todoTasks.length}</span></h3>
+                                    </div>
+                                    <div className="flex flex-col gap-3">
+                                        {todoTasks.map((task) => (
+                                            <TaskCard
+                                                key={task.id}
+                                                task={task}
+                                                actions={
+                                                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                        <button onClick={() => handleMoveTask(task.id, "in_progress")} title="Mover para Em Andamento">
+                                                            <ChevronRight size={14} className="text-pf-blue" />
+                                                        </button>
+                                                        <button onClick={() => handleDeleteTask(task.id)} title="Excluir">
+                                                            <X size={12} className="text-red-400 hover:text-red-600" />
+                                                        </button>
                                                     </div>
-                                                )}
-                                            </div>
-                                        </div>
-                                    ))}
+                                                }
+                                            />
+                                        ))}
+                                    </div>
                                 </div>
-                            </div>
 
-                            {/* DONE */}
-                            <div className="flex min-w-[320px] max-w-[320px] flex-col rounded-lg bg-green-50/50 border border-green-200/50 p-4">
-                                <div className="mb-4 flex items-center justify-between">
-                                    <h3 className="font-sans text-sm font-bold uppercase tracking-wider text-green-800">Concluido <span className="text-green-700/70 ml-1 text-xs font-normal">{doneTasks.length}</span></h3>
+                                {/* IN PROGRESS */}
+                                <div className="flex min-w-[320px] max-w-[320px] flex-col rounded-lg bg-blue-50/50 border border-pf-blue/20 p-4">
+                                    <div className="mb-4 flex items-center justify-between">
+                                        <h3 className="font-sans text-sm font-bold uppercase tracking-wider text-pf-blue">Em Andamento <span className="text-pf-blue/70 ml-1 text-xs font-normal">{inProgressTasks.length}</span></h3>
+                                    </div>
+                                    <div className="flex flex-col gap-3">
+                                        {inProgressTasks.map((task) => (
+                                            <TaskCard
+                                                key={task.id}
+                                                task={task}
+                                                actions={
+                                                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                        <button onClick={() => handleMoveTask(task.id, "done")} title="Concluir">
+                                                            <CheckSquare size={14} className="text-emerald-600" />
+                                                        </button>
+                                                    </div>
+                                                }
+                                            />
+                                        ))}
+                                    </div>
                                 </div>
-                                <div className="flex flex-col gap-3">
-                                    {doneTasks.map((task) => (
-                                        <div key={task.id} className="cursor-pointer rounded-lg border border-green-200/50 bg-white p-4 shadow-sm opacity-70">
-                                            <p className="font-sans text-sm font-semibold text-pf-black mb-2 line-through">{task.title}</p>
-                                            <div className="flex items-center justify-between mt-3 text-xs text-pf-grey">
-                                                <div className={`rounded px-2 py-0.5 font-bold ${PRIORITY_STYLES[task.priority]}`}>{task.priority}</div>
-                                            </div>
-                                        </div>
-                                    ))}
+
+                                {/* DONE */}
+                                <div className="flex min-w-[320px] max-w-[320px] flex-col rounded-lg bg-green-50/50 border border-green-200/50 p-4">
+                                    <div className="mb-4 flex items-center justify-between">
+                                        <h3 className="font-sans text-sm font-bold uppercase tracking-wider text-green-800">Concluido <span className="text-green-700/70 ml-1 text-xs font-normal">{doneTasks.length}</span></h3>
+                                    </div>
+                                    <div className="flex flex-col gap-3">
+                                        {doneTasks.map((task) => (
+                                            <TaskCard key={task.id} task={task} />
+                                        ))}
+                                    </div>
                                 </div>
                             </div>
-                        </div>
+                        )}
                     </div>
                 )}
 
                 {/* TIME ENTRIES (HORAS) */}
                 {activeTab === "horas" && (
                     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                        {/* Cap status header */}
+                        {capStatus && !capStatus.isUncapped && (
+                            <div className={`flex items-center gap-3 rounded-lg px-4 py-2.5 ${
+                                capStatus.threshold === "ok" ? "bg-emerald-50 border border-emerald-200" :
+                                capStatus.threshold === "warning" ? "bg-amber-50 border border-amber-200" :
+                                "bg-red-50 border border-red-200"
+                            }`}>
+                                <div className={`w-2 h-2 rounded-full ${capColor(capStatus.threshold)}`} />
+                                <p className="text-xs font-semibold text-pf-black/70">
+                                    Cap: {Math.round(capStatus.usedMinutes / 60)}h / {Math.round(capStatus.capMinutes / 60)}h ({Math.round(capStatus.percentage)}%)
+                                </p>
+                                {capStatus.remainingMinutes > 0 && (
+                                    <p className="text-[10px] text-pf-grey/50">
+                                        ({Math.round(capStatus.remainingMinutes / 60)}h restantes)
+                                    </p>
+                                )}
+                            </div>
+                        )}
+
                         <div className="rounded-lg border border-pf-grey/10 bg-white p-6 shadow-sm">
                             <h3 className="font-sans text-lg font-bold tracking-tight text-pf-blue mb-6">Lancamento de Horas</h3>
 
@@ -344,7 +535,7 @@ export default function CaseDetailsPage({ params }: { params: { id: string } }) 
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-pf-grey/10">
-                                        {timeEntries.map((entry) => (
+                                        {localTimeEntries.map((entry) => (
                                             <tr key={entry.id} className="hover:bg-pf-blue/5">
                                                 <td className="py-3">{entry.date}</td>
                                                 <td className="py-3 font-semibold text-pf-black">{entry.professional}</td>
@@ -361,7 +552,6 @@ export default function CaseDetailsPage({ params }: { params: { id: string } }) 
                                     </tfoot>
                                 </table>
                             </div>
-
                         </div>
                     </div>
                 )}

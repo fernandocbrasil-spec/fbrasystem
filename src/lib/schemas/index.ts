@@ -11,13 +11,13 @@ export const taskPriority = z.enum(["low", "medium", "high", "urgent"]);
 export const billingType = z.enum(["mensal_fixo", "hora_trabalhada", "exito", "hibrido"]);
 export const invoiceStatus = z.enum(["pending", "issued", "cancelled", "error"]);
 export const arTitleStatus = z.enum(["open", "partial", "paid", "overdue", "cancelled"]);
-export const preInvoiceStatus = z.enum(["draft", "review", "approved", "invoiced"]);
+export const preInvoiceStatus = z.enum(["draft", "pending", "review", "approved", "rejected", "invoiced", "cancelled"]);
 
 // --- Approval Module ---
 export const approvalEntityType = z.enum(["payable", "receivable", "time_entry"]);
 export const payableApprovalStatus = z.enum(["pendente", "aprovado", "rejeitado", "agendado", "pago"]);
 export const receivableApprovalStatus = z.enum(["pendente", "aprovado", "rejeitado", "desconto_solicitado", "baixa_solicitada"]);
-export const timeEntryApprovalStatus = z.enum(["pendente", "aprovado", "rejeitado", "faturado"]);
+export const timeEntryApprovalStatus = z.enum(["rascunho", "pendente", "aprovado", "rejeitado", "faturado"]);
 
 // --- Lead ---
 
@@ -87,6 +87,7 @@ export const createTimeEntrySchema = z.object({
     durationMinutes: z.number().int().min(1, "Duracao minima: 1 minuto"),
     date: z.string().min(1, "Data obrigatoria"),
     isBillable: z.boolean().default(true),
+    capOverrideReason: z.string().max(500).optional(),
 });
 
 export const updateTimeEntrySchema = createTimeEntrySchema.partial();
@@ -163,4 +164,11 @@ export const receivableRequestSchema = z.object({
     requestType: z.enum(["desconto", "baixa"]),
     requestedValue: z.string().optional(),
     reason: z.string().min(1, "Motivo obrigatorio"),
+});
+
+// --- Pre-Invoice Generation ---
+
+export const generatePreInvoiceSchema = z.object({
+    caseId: z.string().uuid("Caso obrigatorio"),
+    period: z.string().regex(/^\d{4}-\d{2}$/, "Formato: YYYY-MM"),
 });

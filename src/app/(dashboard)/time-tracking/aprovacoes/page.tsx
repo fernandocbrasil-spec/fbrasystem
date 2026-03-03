@@ -1,13 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ApprovalActions } from "@/components/approval/approval-actions";
 import { ApprovalDialog } from "@/components/approval/approval-dialog";
 import { BatchApprovalBar } from "@/components/approval/batch-approval-bar";
-import { MOCK_TIME_ENTRIES, type MockTimeEntry } from "@/lib/mock-data";
+import { getTimeEntries } from "@/lib/actions";
+import type { MockTimeEntry } from "@/lib/mock-data";
 import { ArrowLeft } from "lucide-react";
 
 const ACTIVITY_LABELS: Record<string, string> = {
@@ -26,7 +27,16 @@ function formatDuration(minutes: number) {
 }
 
 export default function TimeTrackingAprovacoesPage() {
-    const [data, setData] = useState<MockTimeEntry[]>(MOCK_TIME_ENTRIES);
+    const [data, setData] = useState<MockTimeEntry[]>([]);
+
+    const loadData = useCallback(async () => {
+        const result = await getTimeEntries();
+        setData(result);
+    }, []);
+
+    useEffect(() => {
+        loadData();
+    }, [loadData]);
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [rejectTarget, setRejectTarget] = useState<string | null>(null);
 

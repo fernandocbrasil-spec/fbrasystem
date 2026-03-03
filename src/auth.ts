@@ -10,7 +10,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                 // Mock de usuario para teste do sistema
                 // TODO: substituir por Azure AD provider em producao
                 return {
-                    id: "123",
+                    id: "a0000000-0000-4000-8000-000000000001",
                     name: "Fernando Brasil",
                     email: "fernando@pfadvogados.com.br",
                     role: "socio",
