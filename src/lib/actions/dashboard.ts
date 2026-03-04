@@ -10,8 +10,10 @@ import {
     preInvoices,
     clients,
     cases,
+    auditLogs,
+    meetings,
 } from "@/lib/db/schema";
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, sql, and, gte } from "drizzle-orm";
 import { formatCurrency, formatDateBR, formatTimestampBR } from "@/lib/db/format";
 import {
     MOCK_PENDING_APPROVALS,
@@ -133,16 +135,200 @@ export async function getPendingApprovals(): Promise<MockPendingApproval[]> {
     }
 }
 
+// ============================================================================
+// Notifications — derived from recent audit logs + state-based warnings
+// ============================================================================
+
 export async function getNotifications(): Promise<MockNotification[]> {
     const session = await auth();
     if (!session?.user) return [];
-    // No notifications table in schema — return mock
-    return [...MOCK_NOTIFICATIONS];
+
+    try {
+        const items: MockNotification[] = [];
+        const now = new Date();
+        const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+        // 1. Recent audit log entries → success/info notifications
+        const recentLogs = await db
+            .select()
+            .from(auditLogs)
+            .where(gte(auditLogs.createdAt, sevenDaysAgo))
+            .orderBy(sql`${auditLogs.createdAt} DESC`)
+            .limit(10);
+
+        const actionLabels: Record<string, { tipo: MockNotification["tipo"]; msg: string }> = {
+            nfse_emitted: { tipo: "success", msg: "NFS-e emitida com sucesso" },
+            pre_invoice_generated: { tipo: "info", msg: "Pre-fatura gerada" },
+            pre_invoice_approved: { tipo: "success", msg: "Pre-fatura aprovada" },
+            pre_invoice_rejected: { tipo: "warning", msg: "Pre-fatura rejeitada" },
+            pre_invoice_cancelled: { tipo: "info", msg: "Pre-fatura cancelada" },
+        };
+
+        for (const log of recentLogs) {
+            const def = actionLabels[log.action];
+            if (!def) continue;
+            const newData = (log.newData ?? {}) as Record<string, unknown>;
+            const detail = (newData.nfseNumber as string) ?? (newData.period as string) ?? "";
+            const hora = log.createdAt ? formatTimestampBR(log.createdAt) : "";
+            items.push({
+                id: `log-${log.id}`,
+                tipo: def.tipo,
+                mensagem: detail ? `${def.msg} — ${detail}` : def.msg,
+                hora,
+            });
+        }
+
+        // 2. Stale draft proposals (>3 days old) → warning
+        const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
+        const staleProposals = await db
+            .select({ p: proposals, clientName: clients.companyName })
+            .from(proposals)
+            .leftJoin(clients, eq(proposals.clientId, clients.id))
+            .where(
+                and(
+                    eq(proposals.status, "draft"),
+                    sql`${proposals.createdAt} < ${threeDaysAgo}`,
+                ),
+            )
+            .limit(3);
+
+        for (const row of staleProposals) {
+            const content = (row.p.content ?? {}) as Record<string, unknown>;
+            const title = (content.title as string) ?? row.clientName ?? "Proposta";
+            const daysOld = Math.floor((now.getTime() - (row.p.createdAt?.getTime() ?? now.getTime())) / (24 * 60 * 60 * 1000));
+            items.push({
+                id: `stale-prop-${row.p.id}`,
+                tipo: "warning",
+                mensagem: `Proposta '${title}' aguardando aprovacao ha ${daysOld} dias`,
+                hora: row.p.createdAt ? formatTimestampBR(row.p.createdAt) : "",
+            });
+        }
+
+        // 3. Overdue AP → warning
+        const overdueAP = await db
+            .select()
+            .from(accountsPayable)
+            .where(
+                and(
+                    inArray(accountsPayable.status, ["pending", "open"]),
+                    sql`${accountsPayable.dueDate} < ${now.toISOString().split("T")[0]}`,
+                ),
+            )
+            .limit(3);
+
+        for (const row of overdueAP) {
+            items.push({
+                id: `overdue-ap-${row.id}`,
+                tipo: "warning",
+                mensagem: `Conta a pagar vencida: ${row.supplierName} — ${formatCurrency(row.value)}`,
+                hora: formatDateBR(row.dueDate),
+            });
+        }
+
+        // If no real notifications found, return fallback
+        if (items.length === 0) {
+            return [...MOCK_NOTIFICATIONS];
+        }
+
+        return items.slice(0, 8);
+    } catch {
+        return [...MOCK_NOTIFICATIONS];
+    }
 }
+
+// ============================================================================
+// Events — derived from meetings + upcoming AP/AR due dates
+// ============================================================================
 
 export async function getEvents(): Promise<MockEvent[]> {
     const session = await auth();
     if (!session?.user) return [];
-    // No events/calendar table in schema — return mock
-    return [...MOCK_EVENTS];
+
+    try {
+        const items: MockEvent[] = [];
+        const now = new Date();
+        const thirtyDaysFromNow = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+        const todayStr = now.toISOString().split("T")[0];
+        const futureStr = thirtyDaysFromNow.toISOString().split("T")[0];
+
+        // 1. Upcoming meetings
+        const upcomingMeetings = await db
+            .select()
+            .from(meetings)
+            .where(
+                and(
+                    gte(meetings.date, now),
+                    sql`${meetings.date} <= ${thirtyDaysFromNow}`,
+                ),
+            )
+            .orderBy(meetings.date)
+            .limit(10);
+
+        for (const m of upcomingMeetings) {
+            items.push({
+                id: `mtg-${m.id}`,
+                data: m.date?.toISOString().split("T")[0] ?? todayStr,
+                titulo: m.title ?? "Reuniao",
+                tipo: "reuniao",
+            });
+        }
+
+        // 2. Upcoming AP due dates
+        const upcomingAP = await db
+            .select()
+            .from(accountsPayable)
+            .where(
+                and(
+                    inArray(accountsPayable.status, ["pending", "open"]),
+                    sql`${accountsPayable.dueDate} >= ${todayStr}`,
+                    sql`${accountsPayable.dueDate} <= ${futureStr}`,
+                ),
+            )
+            .orderBy(accountsPayable.dueDate)
+            .limit(5);
+
+        for (const row of upcomingAP) {
+            items.push({
+                id: `ap-due-${row.id}`,
+                data: row.dueDate ?? todayStr,
+                titulo: `Vencimento: ${row.supplierName} — ${formatCurrency(row.value)}`,
+                tipo: "vencimento",
+            });
+        }
+
+        // 3. Upcoming AR due dates (open)
+        const upcomingAR = await db
+            .select({ ar: arTitles, clientName: clients.companyName })
+            .from(arTitles)
+            .leftJoin(clients, eq(arTitles.clientId, clients.id))
+            .where(
+                and(
+                    eq(arTitles.status, "open"),
+                    sql`${arTitles.dueDate} >= ${todayStr}`,
+                    sql`${arTitles.dueDate} <= ${futureStr}`,
+                ),
+            )
+            .orderBy(arTitles.dueDate)
+            .limit(5);
+
+        for (const row of upcomingAR) {
+            items.push({
+                id: `ar-due-${row.ar.id}`,
+                data: row.ar.dueDate ?? todayStr,
+                titulo: `Recebimento: ${row.clientName ?? "Cliente"} — ${formatCurrency(row.ar.value)}`,
+                tipo: "vencimento",
+            });
+        }
+
+        // Sort by date
+        items.sort((a, b) => a.data.localeCompare(b.data));
+
+        if (items.length === 0) {
+            return [...MOCK_EVENTS];
+        }
+
+        return items.slice(0, 10);
+    } catch {
+        return [...MOCK_EVENTS];
+    }
 }

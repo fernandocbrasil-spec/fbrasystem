@@ -3,7 +3,7 @@
 import { z } from "zod";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
-import { leads, users } from "@/lib/db/schema";
+import { leads, users, auditLogs } from "@/lib/db/schema";
 import { formatDateBR } from "@/lib/db/format";
 import { eq, ilike, inArray, sql } from "drizzle-orm";
 import { MOCK_LEADS, type MockLead } from "@/lib/mock-data";
@@ -137,6 +137,15 @@ export async function createLead(data: z.input<typeof createLeadSchema>): Promis
             metadata: parsed.data.metadata ?? {},
             responsibleId: session.user.id,
         }).returning({ id: leads.id });
+
+        await db.insert(auditLogs).values({
+            userId: session.user.id,
+            action: "lead_created",
+            entityType: "lead",
+            entityId: row.id,
+            newData: { contactName: parsed.data.contactName, companyName: parsed.data.companyName },
+        });
+
         return { success: true, id: row.id };
     } catch (err) {
         console.error("[createLead]", err);
@@ -161,6 +170,15 @@ export async function updateLead(
         if (data.metadata) updates.metadata = data.metadata;
 
         await db.update(leads).set(updates).where(eq(leads.id, id));
+
+        await db.insert(auditLogs).values({
+            userId: session.user.id,
+            action: "lead_updated",
+            entityType: "lead",
+            entityId: id,
+            newData: updates as Record<string, unknown>,
+        });
+
         return { success: true };
     } catch (err) {
         console.error("[updateLead]", err);
@@ -174,6 +192,14 @@ export async function deleteLead(id: string): Promise<{ success: boolean; error?
 
     try {
         await db.delete(leads).where(eq(leads.id, id));
+
+        await db.insert(auditLogs).values({
+            userId: session.user.id,
+            action: "lead_deleted",
+            entityType: "lead",
+            entityId: id,
+        });
+
         return { success: true };
     } catch (err) {
         console.error("[deleteLead]", err);
@@ -409,6 +435,14 @@ export async function createLeadFromBoard(
             }),
         }).returning({ id: leads.id });
 
+        await db.insert(auditLogs).values({
+            userId: session.user.id,
+            action: "lead_created",
+            entityType: "lead",
+            entityId: row.id,
+            newData: { name: parsed.data.name, stage: parsed.data.stage },
+        });
+
         return { success: true, id: row.id };
     } catch (err) {
         console.error("[createLeadFromBoard]", err);
@@ -480,6 +514,15 @@ export async function updateLeadFromBoard(
         updates.metadata = validateLeadMetadata(newMeta);
 
         await db.update(leads).set(updates).where(eq(leads.id, parsedId.data));
+
+        await db.insert(auditLogs).values({
+            userId: session.user.id,
+            action: "lead_updated",
+            entityType: "lead",
+            entityId: parsedId.data,
+            newData: { fields: Object.keys(patch) },
+        });
+
         return { success: true };
     } catch (err) {
         console.error("[updateLeadFromBoard]", err);

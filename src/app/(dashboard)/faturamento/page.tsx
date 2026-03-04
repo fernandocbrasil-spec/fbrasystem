@@ -6,8 +6,8 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { ReportToolbar, getDensityClasses, type ColumnDef, type Density, type FilterDef } from "@/components/ui/report-toolbar";
 import { useToast } from "@/components/ui/toast";
 import { Button, SearchInput } from "@/components/ui";
-import { Receipt, Calendar, CheckSquare, Loader2, Send, X, Ban } from "lucide-react";
-import { getInvoices, generatePreInvoice, submitPreInvoice, approvePreInvoice, rejectPreInvoice, cancelPreInvoice } from "@/lib/actions";
+import { Receipt, Calendar, CheckSquare, Loader2, Send, X, Ban, FileText, ExternalLink } from "lucide-react";
+import { getInvoices, generatePreInvoice, submitPreInvoice, approvePreInvoice, rejectPreInvoice, cancelPreInvoice, emitNFSeFromApprovedPreInvoice } from "@/lib/actions";
 import { MOCK_CASE_OPTIONS, type MockInvoice } from "@/lib/mock-data";
 
 const TABLE_COLUMNS: ColumnDef[] = [
@@ -74,6 +74,10 @@ export default function BillingPage() {
     // Reject modal state
     const [rejectModalId, setRejectModalId] = useState<string | null>(null);
     const [rejectComment, setRejectComment] = useState("");
+
+    // NFSe emission state
+    const [emittingId, setEmittingId] = useState<string | null>(null);
+    const [nfseError, setNfseError] = useState<string | null>(null);
 
     const densityClasses = getDensityClasses(density);
 
@@ -163,32 +167,18 @@ export default function BillingPage() {
         }
     };
 
-    const handleDownloadNFSE = (inv: MockInvoice) => {
-        const content = [
-            `NFS-e Simulada — PF Advogados`,
-            `========================================`,
-            `ID: ${inv.id}`,
-            `Cliente: ${inv.client}`,
-            `Caso: ${inv.caseName}`,
-            `Competencia: ${inv.month}`,
-            `Valor: ${inv.value}`,
-            `Modalidade: ${inv.type}`,
-            `Status: ${inv.status}`,
-            `Data emissao: ${new Date().toLocaleDateString("pt-BR")}`,
-            `========================================`,
-            `Documento gerado para fins de demonstracao.`,
-        ].join("\n");
-
-        const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `nfse-${inv.id}.txt`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        toast("NFS-e baixada com sucesso.");
+    const handleEmitNFSe = async (id: string) => {
+        setEmittingId(id);
+        setNfseError(null);
+        const result = await emitNFSeFromApprovedPreInvoice(id);
+        setEmittingId(null);
+        if (result.success) {
+            toast(`NFS-e emitida: ${result.nfseNumber}`);
+            loadData();
+        } else {
+            setNfseError(result.error ?? "Erro ao emitir NFS-e");
+            toast(result.error ?? "Erro ao emitir NFS-e", "warning");
+        }
     };
 
     return (
@@ -282,6 +272,14 @@ export default function BillingPage() {
                             </button>
                         </div>
                     </div>
+                </div>
+            )}
+
+            {/* NFSe Error Banner */}
+            {nfseError && (
+                <div className="flex items-center justify-between rounded border border-red-200 bg-red-50 px-4 py-2.5 mb-2">
+                    <p className="text-xs font-semibold text-red-700">{nfseError}</p>
+                    <button onClick={() => setNfseError(null)}><X size={14} className="text-red-400" /></button>
                 </div>
             )}
 
@@ -387,13 +385,41 @@ export default function BillingPage() {
                                                     </button>
                                                 </>
                                             )}
-                                            {(inv.status === "Faturado" || inv.status === "Aprovado") && (
+                                            {inv.status === "Aprovado" && (
                                                 <button
-                                                    onClick={(e) => { e.stopPropagation(); handleDownloadNFSE(inv); }}
-                                                    className="rounded p-2 text-pf-blue hover:bg-pf-blue/10 transition-all font-bold text-xs"
+                                                    onClick={(e) => { e.stopPropagation(); handleEmitNFSe(inv.id); }}
+                                                    disabled={emittingId === inv.id}
+                                                    title="Emitir NFS-e"
+                                                    className="flex items-center gap-1 rounded bg-indigo-100 px-2 py-1.5 text-xs font-bold text-indigo-700 hover:bg-indigo-600 hover:text-white transition-all disabled:opacity-50"
                                                 >
-                                                    NFS-E
+                                                    {emittingId === inv.id ? (
+                                                        <Loader2 className="h-3 w-3 animate-spin" />
+                                                    ) : (
+                                                        <FileText className="h-3 w-3" />
+                                                    )}
+                                                    Emitir NFS-e
                                                 </button>
+                                            )}
+                                            {inv.status === "Faturado" && (
+                                                <div className="flex items-center gap-2">
+                                                    {inv.nfseNumber && (
+                                                        <span className="inline-flex items-center rounded-sm bg-indigo-50 px-2 py-1 text-[10px] font-bold text-indigo-700 font-mono">
+                                                            {inv.nfseNumber}
+                                                        </span>
+                                                    )}
+                                                    {inv.nfsePdfUrl && (
+                                                        <a
+                                                            href={inv.nfsePdfUrl}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            onClick={(e) => e.stopPropagation()}
+                                                            className="flex items-center gap-1 rounded text-xs font-bold text-pf-blue hover:underline"
+                                                        >
+                                                            <ExternalLink className="h-3 w-3" />
+                                                            PDF
+                                                        </a>
+                                                    )}
+                                                </div>
                                             )}
                                         </div>
                                     </td>}

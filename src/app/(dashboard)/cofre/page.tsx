@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { PageHeader } from "@/components/ui/page-header";
 import { useToast } from "@/components/ui/toast";
 import {
@@ -16,30 +16,13 @@ import {
     Download,
     Calculator,
 } from "lucide-react";
+import { getCofreData, type CofreData, type ClientRentabilidade } from "@/lib/actions/cofre";
 
-const kpiMetrics = [
-    { label: "Faturamento Bruto", value: "R$ 820.000", raw: 820000 },
-    { label: "Impostos & Taxas", value: "-R$ 86.100", raw: -86100 },
-    { label: "Custos Operacionais", value: "-R$ 247.980", raw: -247980 },
-    { label: "Margem Líquida", value: "59.2%", raw: 59.2 },
-] as const;
-
-const topRentabilidade = [
-    { cliente: "Grupo Sequoia", valor: "R$ 135k", margem: "82%" },
-    { cliente: "TechCorp BR", valor: "R$ 98k", margem: "75%" },
-    { cliente: "Indústria Metal SP", valor: "R$ 42k", margem: "64%" },
-] as const;
-
-const analiseCompletaData = [
-    { cliente: "Grupo Sequoia", receita: "R$ 135.000", custos: "R$ 24.300", margem: "82%", horas: "312h" },
-    { cliente: "TechCorp BR", receita: "R$ 98.000", custos: "R$ 24.500", margem: "75%", horas: "245h" },
-    { cliente: "Indústria Metal SP", receita: "R$ 42.000", custos: "R$ 15.120", margem: "64%", horas: "128h" },
-    { cliente: "Construtora Horizonte", receita: "R$ 78.000", custos: "R$ 28.860", margem: "63%", horas: "198h" },
-    { cliente: "Logística Express", receita: "R$ 56.000", custos: "R$ 22.400", margem: "60%", horas: "156h" },
-    { cliente: "Farmacêutica Vida", receita: "R$ 64.000", custos: "R$ 27.520", margem: "57%", horas: "172h" },
-    { cliente: "Auto Peças Nacional", receita: "R$ 38.000", custos: "R$ 17.860", margem: "53%", horas: "104h" },
-    { cliente: "Outros (consolidado)", receita: "R$ 309.000", custos: "R$ 87.420", margem: "72%", horas: "685h" },
-] as const;
+function fmtCurrency(v: number): string {
+    const abs = Math.abs(v);
+    const sign = v < 0 ? "-" : "";
+    return `${sign}R$ ${abs.toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+}
 
 export default function CofrePage() {
     const { toast } = useToast();
@@ -52,22 +35,43 @@ export default function CofrePage() {
     const [simMeses, setSimMeses] = useState("12");
     const [simCalculated, setSimCalculated] = useState(false);
 
+    const [data, setData] = useState<CofreData | null>(null);
+
+    const loadData = useCallback(async () => {
+        const d = await getCofreData();
+        setData(d);
+    }, []);
+
+    useEffect(() => { loadData(); }, [loadData]);
+
+    const kpis = data?.kpis;
+    const rentabilidade = data?.rentabilidade ?? [];
+    const topRent = rentabilidade.slice(0, 3);
+    const year = data?.year ?? 2026;
+
+    const resultadoLiquido = kpis?.resultadoLiquido ?? 0;
+
     const handleGenerateReport = () => {
+        if (!kpis) return;
         setReportState("loading");
         setTimeout(() => {
             setReportState("done");
 
             const csvHeader = "Metrica,Valor\n";
-            const csvRows = kpiMetrics
-                .map((m) => `"${m.label}","${m.value}"`)
-                .join("\n");
-            const csvContent = csvHeader + csvRows + "\n\"Resultado Liquido YTD\",\"R$ 485.920\"";
+            const csvRows = [
+                `"Faturamento Bruto","${fmtCurrency(kpis.faturamentoBruto)}"`,
+                `"Impostos & Taxas","${fmtCurrency(kpis.impostos)}"`,
+                `"Custos Operacionais","${fmtCurrency(kpis.custosOperacionais)}"`,
+                `"Margem Liquida","${kpis.margemLiquida}%"`,
+                `"Resultado Liquido YTD","${fmtCurrency(kpis.resultadoLiquido)}"`,
+            ].join("\n");
+            const csvContent = csvHeader + csvRows;
 
             const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
             const url = URL.createObjectURL(blob);
             const link = document.createElement("a");
             link.href = url;
-            link.download = "relatorio_societario_2026.csv";
+            link.download = `relatorio_societario_${year}.csv`;
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
@@ -81,11 +85,34 @@ export default function CofrePage() {
         setSimCalculated(true);
     };
 
-    const resultadoLiquido = 485920;
     const proLaboreAnual = parseFloat(simValorProLabore || "0") * parseFloat(simMeses || "0");
     const baseDistribuicao = resultadoLiquido - proLaboreAnual;
     const dividendosValor = baseDistribuicao * (parseFloat(simDividendos || "0") / 100);
     const retencao = baseDistribuicao - dividendosValor;
+
+    const kpiMetrics = kpis
+        ? [
+              { label: "Faturamento Bruto", value: fmtCurrency(kpis.faturamentoBruto), raw: kpis.faturamentoBruto },
+              { label: "Impostos & Taxas", value: fmtCurrency(kpis.impostos), raw: kpis.impostos },
+              { label: "Custos Operacionais", value: fmtCurrency(kpis.custosOperacionais), raw: kpis.custosOperacionais },
+              { label: "Margem Liquida", value: `${kpis.margemLiquida}%`, raw: kpis.margemLiquida },
+          ]
+        : [];
+
+    if (!data) {
+        return (
+            <div className="flex items-center justify-center py-20 text-pf-grey">
+                <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                <span className="text-xs font-bold uppercase tracking-wider">Carregando Cofre...</span>
+            </div>
+        );
+    }
+
+    // Totals for rentabilidade table
+    const totalReceita = rentabilidade.reduce((s, r) => s + r.receita, 0);
+    const totalCustos = rentabilidade.reduce((s, r) => s + r.custos, 0);
+    const totalHoras = rentabilidade.reduce((s, r) => s + r.horas, 0);
+    const totalMargem = totalReceita > 0 ? Math.round(((totalReceita - totalCustos) / totalReceita) * 1000) / 10 : 0;
 
     return (
         <div className="space-y-6">
@@ -126,13 +153,10 @@ export default function CofrePage() {
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 pb-4 border-b border-pf-grey/20">
                     <div>
                         <h3 className="font-sans text-sm font-bold text-pf-black">Resultado Liquido (YTD)</h3>
-                        <p className="text-xs text-pf-grey mt-0.5">Janeiro 2026 -- Presente</p>
+                        <p className="text-xs text-pf-grey mt-0.5">Janeiro {year} -- Presente</p>
                     </div>
                     <div className="text-right">
-                        <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-green-700 flex items-center justify-end gap-1 mb-1">
-                            <ArrowUpRight className="h-3 w-3" aria-hidden="true" /> +24% margem vs 2025
-                        </p>
-                        <p className="font-sans text-4xl font-bold text-pf-blue leading-none">R$ 485.920</p>
+                        <p className="font-sans text-4xl font-bold text-pf-blue leading-none">{fmtCurrency(resultadoLiquido)}</p>
                     </div>
                 </div>
                 <div className="grid grid-cols-2 gap-0 md:grid-cols-4 divide-x divide-pf-grey/10 border-b border-pf-grey/20">
@@ -167,29 +191,26 @@ export default function CofrePage() {
                         <PieChart className="h-4 w-4 text-pf-grey/30" aria-hidden="true" />
                     </div>
                     <div className="divide-y divide-pf-grey/15">
-                        {topRentabilidade.map((item) => (
-                            <div key={item.cliente}>
+                        {topRent.map((item) => (
+                            <div key={item.clientId}>
                                 <div
                                     onClick={() =>
-                                        setExpandedClient(expandedClient === item.cliente ? null : item.cliente)
+                                        setExpandedClient(expandedClient === item.clientId ? null : item.clientId)
                                     }
                                     className="flex items-center justify-between py-3 hover:bg-white transition-colors cursor-pointer -mx-2 px-2"
                                 >
-                                    <span className="font-sans text-sm font-bold text-pf-black">{item.cliente}</span>
+                                    <span className="font-sans text-sm font-bold text-pf-black">{item.clientName}</span>
                                     <div className="flex items-center gap-4">
-                                        <span className="font-mono text-xs font-bold text-pf-grey">{item.valor}</span>
+                                        <span className="font-mono text-xs font-bold text-pf-grey">{fmtCurrency(item.receita)}</span>
                                         <span className="inline-flex w-12 justify-center bg-green-100 px-2 py-0.5 font-sans text-[10px] font-bold text-green-700">
-                                            {item.margem}
+                                            {item.margem}%
                                         </span>
                                     </div>
                                 </div>
-                                {expandedClient === item.cliente && (
+                                {expandedClient === item.clientId && (
                                     <div className="bg-pf-grey/5 -mx-2 px-4 py-2 mb-1 text-xs text-pf-grey">
                                         <p>
-                                            RAE detalhado: receita {item.valor} | margem {item.margem}
-                                        </p>
-                                        <p className="mt-1 text-[10px]">
-                                            Conecte o banco de dados para ver dados completos.
+                                            Receita {fmtCurrency(item.receita)} | Custos {fmtCurrency(item.custos)} | Margem {item.margem}% | {item.horas}h
                                         </p>
                                     </div>
                                 )}
@@ -237,6 +258,20 @@ export default function CofrePage() {
                         </div>
                     ) : (
                         <div className="flex-1 px-5 py-5 space-y-4">
+                            {data.partners.length > 0 && (
+                                <div className="space-y-1 border-b border-white/10 pb-3 mb-2">
+                                    <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-pf-grey/50">Socios</p>
+                                    {data.partners.map((p) => (
+                                        <div key={p.id} className="flex justify-between text-xs">
+                                            <span className="text-pf-grey/60">{p.name} ({p.sharePercentage}%)</span>
+                                            <span className="font-bold text-white font-mono">
+                                                {p.ledgerBalance !== 0 ? fmtCurrency(p.ledgerBalance) : "—"}
+                                            </span>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
                             <div className="grid grid-cols-1 gap-3">
                                 <div>
                                     <label className="text-[10px] font-bold uppercase tracking-[0.1em] text-pf-grey/50 block mb-1">
@@ -299,7 +334,7 @@ export default function CofrePage() {
                                     <div className="flex justify-between text-xs">
                                         <span className="text-pf-grey/60">Resultado Liquido</span>
                                         <span className="font-bold text-white">
-                                            R$ {resultadoLiquido.toLocaleString("pt-BR")}
+                                            {fmtCurrency(resultadoLiquido)}
                                         </span>
                                     </div>
                                     <div className="flex justify-between text-xs">
@@ -307,13 +342,13 @@ export default function CofrePage() {
                                             Pro-labore ({simMeses} meses)
                                         </span>
                                         <span className="font-bold text-red-400">
-                                            -R$ {proLaboreAnual.toLocaleString("pt-BR")}
+                                            -{fmtCurrency(proLaboreAnual)}
                                         </span>
                                     </div>
                                     <div className="flex justify-between text-xs">
                                         <span className="text-pf-grey/60">Base Distribuicao</span>
                                         <span className="font-bold text-white">
-                                            R$ {baseDistribuicao.toLocaleString("pt-BR")}
+                                            {fmtCurrency(baseDistribuicao)}
                                         </span>
                                     </div>
                                     <div className="flex justify-between text-xs border-t border-white/10 pt-2">
@@ -321,13 +356,13 @@ export default function CofrePage() {
                                             Dividendos ({simDividendos}%)
                                         </span>
                                         <span className="font-bold text-green-400">
-                                            R$ {dividendosValor.toLocaleString("pt-BR")}
+                                            {fmtCurrency(dividendosValor)}
                                         </span>
                                     </div>
                                     <div className="flex justify-between text-xs">
                                         <span className="text-pf-grey/60">Retencao Societaria</span>
                                         <span className="font-bold text-pf-blue">
-                                            R$ {retencao.toLocaleString("pt-BR")}
+                                            {fmtCurrency(retencao)}
                                         </span>
                                     </div>
                                 </div>
@@ -360,20 +395,20 @@ export default function CofrePage() {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-pf-grey/10">
-                                {analiseCompletaData.map((row) => (
-                                    <tr key={row.cliente} className="hover:bg-white transition-colors">
-                                        <td className="py-3 pr-4 font-bold text-pf-black">{row.cliente}</td>
-                                        <td className="py-3 pr-4 text-right font-mono text-xs">{row.receita}</td>
+                                {rentabilidade.map((row) => (
+                                    <tr key={row.clientId} className="hover:bg-white transition-colors">
+                                        <td className="py-3 pr-4 font-bold text-pf-black">{row.clientName}</td>
+                                        <td className="py-3 pr-4 text-right font-mono text-xs">{fmtCurrency(row.receita)}</td>
                                         <td className="py-3 pr-4 text-right font-mono text-xs text-red-600">
-                                            {row.custos}
+                                            {fmtCurrency(row.custos)}
                                         </td>
                                         <td className="py-3 pr-4 text-right">
                                             <span className="inline-flex w-12 justify-center bg-green-100 px-2 py-0.5 font-sans text-[10px] font-bold text-green-700">
-                                                {row.margem}
+                                                {row.margem}%
                                             </span>
                                         </td>
                                         <td className="py-3 text-right font-mono text-xs text-pf-grey">
-                                            {row.horas}
+                                            {row.horas}h
                                         </td>
                                     </tr>
                                 ))}
@@ -383,17 +418,17 @@ export default function CofrePage() {
                                     <td className="py-3 pr-4 font-bold text-pf-black text-xs uppercase tracking-wider">
                                         Total
                                     </td>
-                                    <td className="py-3 pr-4 text-right font-mono text-xs font-bold">R$ 820.000</td>
+                                    <td className="py-3 pr-4 text-right font-mono text-xs font-bold">{fmtCurrency(totalReceita)}</td>
                                     <td className="py-3 pr-4 text-right font-mono text-xs font-bold text-red-600">
-                                        R$ 247.980
+                                        {fmtCurrency(totalCustos)}
                                     </td>
                                     <td className="py-3 pr-4 text-right">
                                         <span className="inline-flex w-12 justify-center bg-green-100 px-2 py-0.5 font-sans text-[10px] font-bold text-green-700">
-                                            69.8%
+                                            {totalMargem}%
                                         </span>
                                     </td>
                                     <td className="py-3 text-right font-mono text-xs font-bold text-pf-grey">
-                                        2.000h
+                                        {totalHoras}h
                                     </td>
                                 </tr>
                             </tfoot>

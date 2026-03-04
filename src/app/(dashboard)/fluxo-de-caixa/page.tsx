@@ -1,147 +1,42 @@
 "use client";
 
-import { useState, Fragment } from "react";
+import { useState, useEffect, useCallback, Fragment } from "react";
 import { PageHeader } from "@/components/ui/page-header";
 import { ReportToolbar, getDensityClasses, type Density, type FilterDef } from "@/components/ui/report-toolbar";
-import { TrendingUp, TrendingDown, CalendarDays } from "lucide-react";
-
-// ======================== TYPES ========================
-
-type RowTipo = "header" | "item" | "deducao" | "subtotal" | "destaque" | "margem" | "spacer";
-
-type DRERow = {
-    key: string;
-    label: string;
-    tipo: RowTipo;
-    months: number[];       // 12 values [Jan..Dec]
-    forecast?: number[];    // 12 forecast values [Jan..Dec]
-    isMargem?: boolean;
-};
+import { TrendingUp, TrendingDown, CalendarDays, Loader2 } from "lucide-react";
+import { getDREData, type DRERow, type DREData, type RowTipo } from "@/lib/actions/dre";
 
 const VIEW_OPTIONS = ["Mensal", "Trimestral", "Semestral", "Anual"] as const;
 type ViewOption = (typeof VIEW_OPTIONS)[number];
 
 // ======================== CONSTANTS ========================
 
-const REALIZED_THROUGH = 1; // Feb 2026 (index 1) is last realized month
+const MONTH_SUFFIXES = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
 
-const MONTH_LABELS = [
-    "Jan/26", "Fev/26", "Mar/26", "Abr/26", "Mai/26", "Jun/26",
-    "Jul/26", "Ago/26", "Set/26", "Out/26", "Nov/26", "Dez/26",
-];
+function buildMonthLabels(year: number): string[] {
+    const suffix = String(year).slice(2);
+    return MONTH_SUFFIXES.map((m) => `${m}/${suffix}`);
+}
 
-const PERIOD_LABELS: Record<ViewOption, string> = {
-    Mensal: "Fev/2026",
-    Trimestral: "T1 2026 (Jan–Mar)",
-    Semestral: "S1 2026 (Jan–Jun)",
-    Anual: "Ano 2026",
-};
-
-// ======================== MOCK DATA ========================
-
-const MOCK_DRE: DRERow[] = [
-    {
-        key: "receita-bruta",
-        label: "1. Receita Bruta (Faturamento Real + Projetado)",
-        tipo: "header",
-        months:   [132000, 138045, 145200, 152000, 155000, 158000, 162000, 165000, 168000, 172000, 175000, 180000],
-        forecast: [130000, 135000, 143000, 150000, 153000, 156000, 160000, 163000, 166000, 170000, 173000, 178000],
-    },
-    {
-        key: "planos-fixos",
-        label: "1.1. Planos Fixos Ativos",
-        tipo: "item",
-        months:   [78000, 80000, 80000, 85000, 85000, 87000, 88000, 88000, 90000, 90000, 92000, 95000],
-        forecast: [76000, 78000, 80000, 83000, 83000, 85000, 86000, 86000, 88000, 88000, 90000, 93000],
-    },
-    {
-        key: "faturamento-variavel",
-        label: "1.2. Faturamento Variavel (Horas/Exito)",
-        tipo: "item",
-        months:   [54000, 58045, 65200, 67000, 70000, 71000, 74000, 77000, 78000, 82000, 83000, 85000],
-        forecast: [54000, 57000, 63000, 67000, 70000, 71000, 74000, 77000, 78000, 82000, 83000, 85000],
-    },
-    {
-        key: "deducoes",
-        label: "Deducoes (Impostos SN – 14,53%)",
-        tipo: "deducao",
-        months:   [-19180, -20057, -21097, -22085, -22522, -22948, -23543, -23973, -24410, -24991, -25428, -26154],
-        forecast: [-18890, -19610, -20778, -21795, -22221, -22667, -23248, -23684, -24096, -24701, -25138, -25859],
-    },
-    {
-        key: "receita-liquida",
-        label: "2. Receita Liquida",
-        tipo: "subtotal",
-        months:   [112820, 117988, 124103, 129915, 132478, 135052, 138457, 141027, 143590, 147009, 149572, 153846],
-        forecast: [111110, 115390, 122222, 128205, 130779, 133333, 136752, 139316, 141904, 145299, 147862, 152141],
-    },
-    { key: "spacer-1", label: "", tipo: "spacer", months: Array(12).fill(0) },
-    {
-        key: "despesas-operacionais",
-        label: "3. Despesas Operacionais (AP)",
-        tipo: "header",
-        months:   [-71000, -72500, -75000, -76200, -77000, -77500, -78000, -78500, -79000, -79500, -80000, -81000],
-        forecast: [-70000, -71500, -74000, -75000, -76000, -76500, -77000, -77500, -78000, -78500, -79000, -80000],
-    },
-    {
-        key: "folha",
-        label: "3.1. Folha de Pagamento & Encargos",
-        tipo: "item",
-        months:   [-45000, -45000, -45000, -45000, -45000, -45000, -46000, -46000, -46000, -46000, -47000, -47000],
-        forecast: [-44000, -44000, -44000, -44000, -45000, -45000, -45000, -45000, -46000, -46000, -46000, -46000],
-    },
-    {
-        key: "infra",
-        label: "3.2. Infraestrutura (Aluguel, Software, TI)",
-        tipo: "item",
-        months:   [-15000, -15500, -16000, -16200, -16500, -16500, -16500, -17000, -17000, -17000, -17000, -18000],
-        forecast: [-15000, -15000, -15500, -15500, -15500, -15500, -16000, -16000, -16000, -16000, -17000, -17000],
-    },
-    {
-        key: "marketing",
-        label: "3.3. Marketing & Comercial",
-        tipo: "item",
-        months:   [-11000, -12000, -14000, -15000, -15500, -16000, -15500, -15500, -16000, -16500, -16000, -16000],
-        forecast: [-11000, -12500, -14500, -15500, -15500, -15500, -16000, -16500, -16000, -16500, -16000, -17000],
-    },
-    {
-        key: "ebitda",
-        label: "4. EBITDA (Resultado Operacional)",
-        tipo: "subtotal",
-        months:   [41820, 45488, 49103, 53715, 55478, 57552, 60457, 62527, 64590, 67509, 69572, 72846],
-        forecast: [41110, 43890, 48222, 53205, 54779, 56833, 59752, 61816, 63904, 66799, 68862, 72141],
-    },
-    { key: "spacer-2", label: "", tipo: "spacer", months: Array(12).fill(0) },
-    {
-        key: "fcf",
-        label: "5. Caixa Livre Gerado (FCF)",
-        tipo: "destaque",
-        months:   [41820, 45488, 49103, 53715, 55478, 57552, 60457, 62527, 64590, 67509, 69572, 72846],
-        forecast: [41110, 43890, 48222, 53205, 54779, 56833, 59752, 61816, 63904, 66799, 68862, 72141],
-    },
-    {
-        key: "margem-fcf",
-        label: "Margem FCF (%)",
-        tipo: "margem",
-        isMargem: true,
-        months:   [31.68, 32.95, 33.81, 35.34, 35.79, 36.43, 37.32, 37.89, 38.45, 39.25, 39.76, 40.47],
-        forecast: [31.62, 32.51, 33.72, 35.47, 35.80, 36.43, 37.35, 37.92, 38.49, 39.29, 39.82, 40.52],
-    },
-];
+function buildPeriodLabels(year: number, realizedThrough: number): Record<ViewOption, string> {
+    const lastRealized = MONTH_SUFFIXES[realizedThrough];
+    return {
+        Mensal: `${lastRealized}/${year}`,
+        Trimestral: `T1 ${year} (Jan–Mar)`,
+        Semestral: `S1 ${year} (Jan–Jun)`,
+        Anual: `Ano ${year}`,
+    };
+}
 
 // ======================== HELPERS ========================
 
-function getVisibleMonthIndices(view: ViewOption): number[] {
+function getVisibleMonthIndices(view: ViewOption, realizedThrough: number): number[] {
     switch (view) {
-        case "Mensal": return [REALIZED_THROUGH];
+        case "Mensal": return [realizedThrough];
         case "Trimestral": return [0, 1, 2];
         case "Semestral": return [0, 1, 2, 3, 4, 5];
         case "Anual": return Array.from({ length: 12 }, (_, i) => i);
     }
-}
-
-function getMonthTag(idx: number): "Realizado" | "Previsao" {
-    return idx <= REALIZED_THROUGH ? "Realizado" : "Previsao";
 }
 
 function fmtCurrency(value: number): string {
@@ -278,22 +173,40 @@ export default function FluxoDeCaixaPage() {
     const [visibleColumns, setVisibleColumns] = useState<string[]>(["dre"]);
     const [currentFilters, setCurrentFilters] = useState<Record<string, string[]>>({});
 
+    // DRE data from server action
+    const [dreData, setDreData] = useState<DREData | null>(null);
+
+    const loadDRE = useCallback(async () => {
+        const data = await getDREData();
+        setDreData(data);
+    }, []);
+
+    useEffect(() => { loadDRE(); }, [loadDRE]);
+
+    const dreRows = dreData?.rows ?? [];
+    const REALIZED_THROUGH = dreData?.realizedThrough ?? 1;
+    const dreYear = dreData?.year ?? 2026;
+    const MONTH_LABELS = buildMonthLabels(dreYear);
+    const PERIOD_LABELS = buildPeriodLabels(dreYear, REALIZED_THROUGH);
+
+    const getMonthTag = (idx: number) => idx <= REALIZED_THROUGH ? "Realizado" : "Projetado";
+
     // Derived
-    const visibleMonths = getVisibleMonthIndices(view);
+    const visibleMonths = getVisibleMonthIndices(view, REALIZED_THROUGH);
     const colsPerMonth = considerarPrevisao ? 4 : 1;
     const totalDataCols = 1 + visibleMonths.length * colsPerMonth + 1;
 
     // KPI values
-    const receitaRow = MOCK_DRE.find((r) => r.key === "receita-bruta")!;
-    const despesasRow = MOCK_DRE.find((r) => r.key === "despesas-operacionais")!;
-    const fcfRow = MOCK_DRE.find((r) => r.key === "fcf")!;
+    const receitaRow = dreRows.find((r) => r.key === "receita-bruta");
+    const despesasRow = dreRows.find((r) => r.key === "despesas-operacionais");
+    const fcfRow = dreRows.find((r) => r.key === "fcf");
 
-    const kpiReceita = visibleMonths.reduce((s, i) => s + receitaRow.months[i], 0);
-    const kpiReceitaForecast = visibleMonths.reduce((s, i) => s + (receitaRow.forecast?.[i] ?? 0), 0);
-    const kpiDespesas = visibleMonths.reduce((s, i) => s + Math.abs(despesasRow.months[i]), 0);
-    const kpiDespesasForecast = visibleMonths.reduce((s, i) => s + Math.abs(despesasRow.forecast?.[i] ?? 0), 0);
-    const kpiFCF = visibleMonths.reduce((s, i) => s + fcfRow.months[i], 0);
-    const kpiFCFForecast = visibleMonths.reduce((s, i) => s + (fcfRow.forecast?.[i] ?? 0), 0);
+    const kpiReceita = receitaRow ? visibleMonths.reduce((s, i) => s + receitaRow.months[i], 0) : 0;
+    const kpiReceitaForecast = receitaRow ? visibleMonths.reduce((s, i) => s + (receitaRow.forecast?.[i] ?? 0), 0) : 0;
+    const kpiDespesas = despesasRow ? visibleMonths.reduce((s, i) => s + Math.abs(despesasRow.months[i]), 0) : 0;
+    const kpiDespesasForecast = despesasRow ? visibleMonths.reduce((s, i) => s + Math.abs(despesasRow.forecast?.[i] ?? 0), 0) : 0;
+    const kpiFCF = fcfRow ? visibleMonths.reduce((s, i) => s + fcfRow.months[i], 0) : 0;
+    const kpiFCFForecast = fcfRow ? visibleMonths.reduce((s, i) => s + (fcfRow.forecast?.[i] ?? 0), 0) : 0;
     const kpiMargem = kpiReceita > 0 ? ((kpiFCF / kpiReceita) * 100).toFixed(1) : "0.0";
 
     return (
@@ -422,6 +335,12 @@ export default function FluxoDeCaixaPage() {
             </div>
 
             {/* ==================== DRE TABLE ==================== */}
+            {!dreData ? (
+                <div className="flex items-center justify-center py-20 text-pf-grey">
+                    <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                    <span className="text-xs font-bold uppercase tracking-wider">Carregando DRE...</span>
+                </div>
+            ) : (
             <div className="overflow-x-auto mt-2">
                 <table className="w-full text-left font-sans text-sm whitespace-nowrap">
                     {/* ---- THEAD ---- */}
@@ -474,7 +393,7 @@ export default function FluxoDeCaixaPage() {
 
                     {/* ---- TBODY ---- */}
                     <tbody className="divide-y divide-pf-grey/10">
-                        {MOCK_DRE.map((row) => {
+                        {dreRows.map((row) => {
                             if (row.tipo === "spacer") {
                                 return <tr key={row.key} className="h-3"><td colSpan={totalDataCols} /></tr>;
                             }
@@ -553,6 +472,7 @@ export default function FluxoDeCaixaPage() {
                     </tbody>
                 </table>
             </div>
+            )}
 
             {/* Period context */}
             <div className="flex items-center justify-between mt-4 pt-3 border-t border-pf-grey/10">
@@ -560,7 +480,7 @@ export default function FluxoDeCaixaPage() {
                     Periodo: {PERIOD_LABELS[view]}
                 </p>
                 <p className="text-[10px] text-pf-grey">
-                    Meses realizados: Jan–Fev/2026 · Previsao: Mar–Dez/2026
+                    Meses realizados: {MONTH_SUFFIXES[0]}–{MONTH_SUFFIXES[REALIZED_THROUGH]}/{dreYear} · Previsao: {MONTH_SUFFIXES[REALIZED_THROUGH + 1] ?? "—"}–{MONTH_SUFFIXES[11]}/{dreYear}
                 </p>
             </div>
         </div>

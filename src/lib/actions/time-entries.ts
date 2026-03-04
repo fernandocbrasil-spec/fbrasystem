@@ -19,6 +19,7 @@ const timeEntriesFilterSchema = z.object({
     search: z.string().max(200).optional(),
     activityType: z.array(z.string().max(50)).optional(),
     date: z.string().max(20).optional(),
+    caseId: z.string().uuid().optional(),
 }).optional();
 
 const createTimeEntrySchema = z.object({
@@ -85,6 +86,9 @@ export async function getTimeEntries(filters?: z.input<typeof timeEntriesFilterS
 
     try {
         const conditions = [];
+        if (f?.caseId) {
+            conditions.push(eq(timeEntries.caseId, f.caseId));
+        }
         if (f?.date) {
             conditions.push(eq(timeEntries.date, f.date));
         }
@@ -242,6 +246,14 @@ export async function createTimeEntry(data: z.input<typeof createTimeEntrySchema
             });
         }
 
+        await db.insert(auditLogs).values({
+            userId: session.user.id,
+            action: "time_entry_created",
+            entityType: "time_entry",
+            entityId: row.id,
+            newData: { caseId: parsed.data.caseId, durationMinutes: parsed.data.durationMinutes, activityType: parsed.data.activityType },
+        });
+
         return { success: true, id: row.id, capWarning, capStatus: projectedCap };
     } catch (err) {
         console.error("[createTimeEntry]", err);
@@ -277,6 +289,13 @@ export async function submitTimeEntry(
             updatedAt: new Date(),
         }).where(eq(timeEntries.id, id));
 
+        await db.insert(auditLogs).values({
+            userId: session.user.id,
+            action: "time_entry_submitted",
+            entityType: "time_entry",
+            entityId: id,
+        });
+
         return { success: true };
     } catch (err) {
         console.error("[submitTimeEntry]", err);
@@ -311,6 +330,13 @@ export async function retractTimeEntry(
             submittedAt: null,
             updatedAt: new Date(),
         }).where(eq(timeEntries.id, id));
+
+        await db.insert(auditLogs).values({
+            userId: session.user.id,
+            action: "time_entry_retracted",
+            entityType: "time_entry",
+            entityId: id,
+        });
 
         return { success: true };
     } catch (err) {
@@ -411,6 +437,14 @@ export async function deleteTimeEntry(
         }
 
         await db.delete(timeEntries).where(eq(timeEntries.id, id));
+
+        await db.insert(auditLogs).values({
+            userId: session.user.id,
+            action: "time_entry_deleted",
+            entityType: "time_entry",
+            entityId: id,
+        });
+
         return { success: true };
     } catch (err) {
         console.error("[deleteTimeEntry]", err);
@@ -465,6 +499,15 @@ export async function updateTimeEntryStatus(
         }
 
         await db.update(timeEntries).set(updates).where(eq(timeEntries.id, id));
+
+        await db.insert(auditLogs).values({
+            userId: session.user.id,
+            action: "time_entry_status_updated",
+            entityType: "time_entry",
+            entityId: id,
+            newData: { from: current, to: newStatus, comment },
+        });
+
         return { success: true };
     } catch (err) {
         console.error("[updateTimeEntryStatus]", err);

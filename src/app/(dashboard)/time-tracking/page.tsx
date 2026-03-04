@@ -6,10 +6,11 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { ReportToolbar, getDensityClasses, type ColumnDef, type Density, type FilterDef } from "@/components/ui/report-toolbar";
 import { ApprovalBadge } from "@/components/approval/approval-badge";
 import { useToast } from "@/components/ui/toast";
-import { getTimeEntries, createTimeEntry, submitTimeEntry, deleteTimeEntry, retractTimeEntry, getCapStatusAction } from "@/lib/actions";
+import { TimeEntryForm } from "@/components/time-entry/time-entry-form";
+import { getTimeEntries, getCases, submitTimeEntry, deleteTimeEntry, retractTimeEntry } from "@/lib/actions";
 import { MOCK_CASE_OPTIONS } from "@/lib/mock-data";
 import type { MockTimeEntry } from "@/lib/mock-data";
-import type { CapStatus } from "@/lib/billing/cap";
+import type { MockCase } from "@/lib/mock-data";
 import { Button, SearchInput } from "@/components/ui";
 import {
     Play, Pause, Square, Plus, Clock, X, Send, Trash2, Undo2, AlertTriangle,
@@ -43,15 +44,6 @@ function formatTimerDisplay(ms: number): string {
     return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
-function parseDurationToMinutes(input: string): number | null {
-    const match = input.match(/^(\d{1,2}):(\d{2})$/);
-    if (!match) return null;
-    const h = parseInt(match[1], 10);
-    const m = parseInt(match[2], 10);
-    if (m >= 60) return null;
-    return h * 60 + m;
-}
-
 export default function TimeTrackingPage() {
     const { toast } = useToast();
 
@@ -69,11 +61,15 @@ export default function TimeTrackingPage() {
 
     // Manual form state
     const [showManualForm, setShowManualForm] = useState(false);
-    const [manualCaseId, setManualCaseId] = useState(MOCK_CASE_OPTIONS[0].id);
-    const [manualActivityType, setManualActivityType] = useState<ActivityType>("reuniao");
-    const [manualDescription, setManualDescription] = useState("");
-    const [manualDuration, setManualDuration] = useState("");
-    const [manualBillable, setManualBillable] = useState(true);
+    const [caseOptions, setCaseOptions] = useState<Array<{ id: string; number: string; client: string }>>([]);
+
+    // Load case options from DB
+    useEffect(() => {
+        getCases().then((cases: MockCase[]) => {
+            const opts = cases.map((c) => ({ id: c.id, number: c.number, client: c.client }));
+            setCaseOptions(opts.length > 0 ? opts : MOCK_CASE_OPTIONS);
+        });
+    }, []);
 
     // Timer state
     const [timerStatus, setTimerStatus] = useState<TimerStatus>("idle");
@@ -84,9 +80,6 @@ export default function TimeTrackingPage() {
     const [startedAt, setStartedAt] = useState<number | null>(null);
     const [displayMs, setDisplayMs] = useState(0);
     const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-    // Cap status for selected case in manual form
-    const [manualCapStatus, setManualCapStatus] = useState<CapStatus | null>(null);
 
     const [search, setSearch] = useState("");
     const [typeFilter, setTypeFilter] = useState<string[]>([]);
@@ -113,14 +106,6 @@ export default function TimeTrackingPage() {
 
     const densityClasses = getDensityClasses(density);
 
-    // Load cap status when case changes in manual form
-    useEffect(() => {
-        if (manualCaseId && showManualForm) {
-            const today = new Date().toISOString().split("T")[0];
-            getCapStatusAction(manualCaseId, today).then(setManualCapStatus);
-        }
-    }, [manualCaseId, showManualForm]);
-
     useEffect(() => {
         if (timerStatus === "running" && startedAt !== null) {
             intervalRef.current = setInterval(() => {
@@ -142,40 +127,6 @@ export default function TimeTrackingPage() {
     const stopTimer = () => {
         setAccumulatedMs(0); setStartedAt(null); setDisplayMs(0);
         setTimerStatus("idle"); setTimerDesc("");
-    };
-
-    // Manual form submit — calls server action
-    const handleManualSubmit = async () => {
-        const minutes = parseDurationToMinutes(manualDuration);
-        if (!manualDescription.trim() || minutes === null || minutes <= 0) return;
-
-        const today = new Date().toISOString().split("T")[0];
-        const result = await createTimeEntry({
-            caseId: manualCaseId,
-            activityType: manualActivityType,
-            description: manualDescription.trim(),
-            durationMinutes: minutes,
-            date: today,
-            isBillable: manualBillable,
-        });
-
-        if (!result.success) {
-            toast(result.error ?? "Erro ao criar apontamento", "warning");
-            return;
-        }
-
-        if (result.capWarning) {
-            toast(result.capWarning, "warning");
-        }
-
-        setShowManualForm(false);
-        setManualDescription("");
-        setManualDuration("");
-        setManualBillable(true);
-        setManualCaseId(MOCK_CASE_OPTIONS[0].id);
-        setManualActivityType("reuniao");
-        toast(`Lancamento de ${formatDuration(minutes)} salvo como rascunho.`, "success");
-        loadEntries();
     };
 
     // Row actions
@@ -236,87 +187,13 @@ export default function TimeTrackingPage() {
                     }
                 />
 
-                {/* Manual Entry Form */}
+                {/* Manual Entry Form — shared component */}
                 {showManualForm && (
-                    <div className="bg-white border border-pf-grey/20 rounded p-4 space-y-3">
-                        <div className="flex items-center justify-between">
-                            <h3 className="text-sm font-bold text-pf-black">Lancamento Manual</h3>
-                            <button onClick={() => setShowManualForm(false)} className="text-pf-grey hover:text-pf-black transition-colors">
-                                <X className="h-4 w-4" />
-                            </button>
-                        </div>
-                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                            <div>
-                                <label className="block text-[10px] font-bold uppercase tracking-[0.15em] text-pf-grey mb-1">Caso</label>
-                                <select
-                                    value={manualCaseId}
-                                    onChange={(e) => setManualCaseId(e.target.value)}
-                                    className="w-full h-8 rounded-md border border-pf-grey/20 px-3 text-sm font-sans outline-none focus:border-pf-blue bg-white"
-                                >
-                                    {MOCK_CASE_OPTIONS.map((c) => (
-                                        <option key={c.id} value={c.id}>{c.number} -- {c.client}</option>
-                                    ))}
-                                </select>
-                            </div>
-                            <div>
-                                <label className="block text-[10px] font-bold uppercase tracking-[0.15em] text-pf-grey mb-1">Tipo de Atividade</label>
-                                <select
-                                    value={manualActivityType}
-                                    onChange={(e) => setManualActivityType(e.target.value as ActivityType)}
-                                    className="w-full h-8 rounded-md border border-pf-grey/20 px-3 text-sm font-sans outline-none focus:border-pf-blue bg-white"
-                                >
-                                    {Object.entries(ACTIVITY_LABELS).map(([value, label]) => (
-                                        <option key={value} value={value}>{label}</option>
-                                    ))}
-                                </select>
-                            </div>
-                            <div>
-                                <label className="block text-[10px] font-bold uppercase tracking-[0.15em] text-pf-grey mb-1">Duracao (hh:mm)</label>
-                                <input
-                                    type="text"
-                                    value={manualDuration}
-                                    onChange={(e) => setManualDuration(e.target.value)}
-                                    placeholder="Ex: 01:30"
-                                    className="w-full h-8 rounded-md border border-pf-grey/20 px-3 text-sm font-sans outline-none focus:border-pf-blue bg-white font-mono"
-                                />
-                            </div>
-                        </div>
-                        <div>
-                            <label className="block text-[10px] font-bold uppercase tracking-[0.15em] text-pf-grey mb-1">Descricao</label>
-                            <input
-                                type="text"
-                                value={manualDescription}
-                                onChange={(e) => setManualDescription(e.target.value)}
-                                placeholder="Descreva a atividade realizada..."
-                                className="w-full h-8 rounded-md border border-pf-grey/20 px-3 text-sm font-sans outline-none focus:border-pf-blue bg-white"
-                            />
-                        </div>
-                        {/* Cap indicator */}
-                        {manualCapStatus && !manualCapStatus.isUncapped && (
-                            <div className={`flex items-center gap-2 rounded px-3 py-2 text-xs font-semibold ${
-                                manualCapStatus.threshold === "ok" ? "bg-emerald-50 text-emerald-700" :
-                                manualCapStatus.threshold === "warning" ? "bg-amber-50 text-amber-700" :
-                                "bg-red-50 text-red-700"
-                            }`}>
-                                {manualCapStatus.threshold !== "ok" && <AlertTriangle size={12} />}
-                                Cap: {Math.round(manualCapStatus.usedMinutes / 60)}h / {Math.round(manualCapStatus.capMinutes / 60)}h ({Math.round(manualCapStatus.percentage)}%)
-                            </div>
-                        )}
-                        <div className="flex items-center justify-between pt-1">
-                            <label className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-pf-grey cursor-pointer select-none">
-                                <input type="checkbox" checked={manualBillable} onChange={(e) => setManualBillable(e.target.checked)} className="accent-pf-blue" />
-                                Faturavel
-                            </label>
-                            <div className="flex gap-2">
-                                <Button variant="secondary" size="sm" onClick={() => setShowManualForm(false)}>
-                                    Cancelar
-                                </Button>
-                                <Button variant="dark" size="sm" onClick={handleManualSubmit} disabled={!manualDescription.trim() || parseDurationToMinutes(manualDuration) === null || (parseDurationToMinutes(manualDuration) ?? 0) <= 0}>
-                                    Adicionar
-                                </Button>
-                            </div>
-                        </div>
-                    </div>
+                    <TimeEntryForm
+                        caseOptions={caseOptions}
+                        onSuccess={() => { setShowManualForm(false); loadEntries(); }}
+                        onCancel={() => setShowManualForm(false)}
+                    />
                 )}
 
                 {/* Timer Widget */}

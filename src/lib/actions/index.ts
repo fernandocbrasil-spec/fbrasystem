@@ -35,3 +35,23 @@ export { getPendingApprovals, getNotifications, getEvents } from "./dashboard";
 
 // Forecast & KPIs
 export { fetchDashboardKPIs, fetchCashflowChart, fetchRollingForecast, fetchRiskItems } from "./forecast";
+
+// Google Drive
+export { getCaseDriveInfo, listCaseFiles, createOrGetCaseFolder } from "./gdrive";
+export type { CaseDriveInfo } from "./gdrive";
+
+// NFSe
+export { emitNFSeFromApprovedPreInvoice } from "./nfse";
+export type { EmitNFSeResult } from "./nfse";
+
+// DRE
+export { getDREData } from "./dre";
+export type { DRERow, DREData, RowTipo } from "./dre";
+
+// Cofre (Partners + Distributions)
+export { getCofreData } from "./cofre";
+export type { CofreData, CofreKPIs, PartnerInfo, ClientRentabilidade, DistributionInfo } from "./cofre";
+
+// AI (Meeting Summarization)
+export { getCaseMeetings, summarizeMeeting } from "./ai";
+export type { SummarizeMeetingResult, CaseMeeting } from "./ai";

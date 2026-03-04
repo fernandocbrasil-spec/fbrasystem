@@ -6,7 +6,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ReportToolbar, getDensityClasses, type ColumnDef, type Density, type FilterDef } from "@/components/ui/report-toolbar";
 import { ApprovalDialog } from "@/components/approval/approval-dialog";
-import { getPayables, getReceivables, getTimeEntries, getProposals } from "@/lib/actions";
+import { getPayables, getReceivables, getTimeEntries, getProposals, updateTimeEntryStatus, updatePayableStatus } from "@/lib/actions";
 import { type MockPayable, type MockReceivable, type MockTimeEntry, type MockProposal } from "@/lib/mock-data";
 import { SearchInput } from "@/components/ui";
 import { ShieldCheck, CreditCard, Receipt, Clock, FileText, ChevronRight, Check, X } from "lucide-react";
@@ -164,28 +164,33 @@ export default function AprovacoesConsolidadasPage() {
         });
     };
 
-    const handleApprovePayable = (id: string) => {
-        setPayables((prev) => prev.map((p) => p.id === id ? { ...p, approvalStatus: "aprovado" as const, approvedBy: "Jose Rafael Feiteiro", approvedAt: "01/03/2026" } : p));
+    const handleApprovePayable = async (id: string) => {
+        const result = await updatePayableStatus(id, "", "aprovado");
+        if (result.success) loadData();
     };
 
     const handleApproveReceivable = (id: string) => {
+        // AR approval has different semantics (desconto/baixa) — keep local for now
         setReceivables((prev) => prev.map((r) => r.id === id ? { ...r, approvalStatus: "aprovado" as const, approvedBy: "Jose Rafael Feiteiro", approvedAt: "01/03/2026" } : r));
     };
 
-    const handleApproveTimeEntry = (id: string) => {
-        setTimeEntriesData((prev) => prev.map((t) => t.id === id ? { ...t, approvalStatus: "aprovado" as const, approvedBy: "Jose Rafael Feiteiro", approvedAt: "01/03/2026" } : t));
+    const handleApproveTimeEntry = async (id: string) => {
+        const result = await updateTimeEntryStatus(id, "aprovado");
+        if (result.success) loadData();
     };
 
-    const handleReject = (comment: string) => {
+    const handleReject = async (comment: string) => {
         if (!rejectTarget) return;
         const { type, id } = rejectTarget;
         if (type === "payables") {
-            setPayables((prev) => prev.map((p) => p.id === id ? { ...p, approvalStatus: "rejeitado" as const, rejectionComment: comment } : p));
+            await updatePayableStatus(id, "", "rejeitado");
         } else if (type === "receivables") {
+            // AR rejection — keep local for now
             setReceivables((prev) => prev.map((r) => r.id === id ? { ...r, approvalStatus: "rejeitado" as const, rejectionComment: comment } : r));
         } else if (type === "timeEntries") {
-            setTimeEntriesData((prev) => prev.map((t) => t.id === id ? { ...t, approvalStatus: "rejeitado" as const, rejectionComment: comment } : t));
+            await updateTimeEntryStatus(id, "rejeitado", comment);
         }
+        loadData();
         setRejectTarget(null);
     };
 

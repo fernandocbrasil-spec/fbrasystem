@@ -3,7 +3,7 @@
 import { z } from "zod";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
-import { cases, clients, users } from "@/lib/db/schema";
+import { cases, clients, users, auditLogs } from "@/lib/db/schema";
 import { formatDateBR } from "@/lib/db/format";
 import { eq, ilike, inArray, sql } from "drizzle-orm";
 import { MOCK_CASES, type MockCase } from "@/lib/mock-data";
@@ -165,6 +165,15 @@ export async function createCase(data: z.input<typeof createCaseSchema>): Promis
             proposalId: parsed.data.proposalId,
             startedAt: new Date().toISOString().split("T")[0],
         }).returning({ id: cases.id });
+
+        await db.insert(auditLogs).values({
+            userId: session.user.id,
+            action: "case_created",
+            entityType: "case",
+            entityId: row.id,
+            newData: { title: parsed.data.title, clientId: parsed.data.clientId },
+        });
+
         return { success: true, id: row.id };
     } catch (err) {
         console.error("[createCase]", err);
@@ -174,13 +183,22 @@ export async function createCase(data: z.input<typeof createCaseSchema>): Promis
 
 export async function updateCase(
     id: string,
-    data: { status?: string; title?: string; area?: string },
+    data: { status?: string; title?: string; area?: string; driveFolderId?: string; driveFolderUrl?: string },
 ): Promise<{ success: boolean; error?: string }> {
     const session = await auth();
     if (!session?.user) return { success: false, error: "Nao autenticado" };
 
     try {
         await db.update(cases).set(data).where(eq(cases.id, id));
+
+        await db.insert(auditLogs).values({
+            userId: session.user.id,
+            action: "case_updated",
+            entityType: "case",
+            entityId: id,
+            newData: data as Record<string, unknown>,
+        });
+
         return { success: true };
     } catch (err) {
         console.error("[updateCase]", err);

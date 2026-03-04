@@ -46,6 +46,8 @@ function toMockInvoice(
     clientName: string,
     caseName: string,
     billingType: string,
+    nfseNumber?: string | null,
+    nfsePdfUrl?: string | null,
 ): MockInvoice {
     return {
         id: row.id,
@@ -55,6 +57,8 @@ function toMockInvoice(
         value: formatCurrency(row.totalValue),
         status: STATUS_MAP[row.status ?? "draft"] ?? "Rascunho",
         type: billingType,
+        nfseNumber: nfseNumber ?? undefined,
+        nfsePdfUrl: nfsePdfUrl ?? undefined,
     };
 }
 
@@ -73,11 +77,14 @@ export async function getInvoices(): Promise<MockInvoice[]> {
                 clientName: clients.companyName,
                 caseTitle: cases.title,
                 billingType: billingPlans.type,
+                nfseNumber: invoices.nfseNumber,
+                nfsePdfUrl: invoices.nfsePdfUrl,
             })
             .from(preInvoices)
             .leftJoin(clients, eq(preInvoices.clientId, clients.id))
             .leftJoin(cases, eq(preInvoices.caseId, cases.id))
             .leftJoin(billingPlans, eq(preInvoices.billingPlanId, billingPlans.id))
+            .leftJoin(invoices, eq(invoices.preInvoiceId, preInvoices.id))
             .orderBy(preInvoices.createdAt);
 
         return rows.map((r) => {
@@ -86,7 +93,7 @@ export async function getInvoices(): Promise<MockInvoice[]> {
                 : r.billingType === "exito" ? "Exito"
                 : r.billingType === "hibrido" ? "Hibrido"
                 : "Fixo Mensal";
-            return toMockInvoice(r.preInvoice, r.clientName ?? "", r.caseTitle ?? "", typeLabel);
+            return toMockInvoice(r.preInvoice, r.clientName ?? "", r.caseTitle ?? "", typeLabel, r.nfseNumber, r.nfsePdfUrl);
         });
     } catch {
         return [...MOCK_INVOICES];
@@ -316,6 +323,13 @@ export async function submitPreInvoice(
             status: "pending",
             updatedAt: new Date(),
         }).where(eq(preInvoices.id, id));
+
+        await db.insert(auditLogs).values({
+            userId: session.user.id,
+            action: "pre_invoice_submitted",
+            entityType: "pre_invoice",
+            entityId: id,
+        });
 
         return { success: true };
     } catch (err) {

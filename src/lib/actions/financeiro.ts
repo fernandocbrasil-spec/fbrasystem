@@ -3,7 +3,7 @@
 import { z } from "zod";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
-import { accountsPayable, arTitles, clients } from "@/lib/db/schema";
+import { accountsPayable, arTitles, clients, auditLogs } from "@/lib/db/schema";
 import { formatCurrency, formatDateBR, formatTimestampBR, parseCurrency, parseDateBR } from "@/lib/db/format";
 import { eq, ilike, inArray, or, sql } from "drizzle-orm";
 import { MOCK_RECEIVABLES, MOCK_PAYABLES, type MockReceivable, type MockPayable } from "@/lib/mock-data";
@@ -191,7 +191,7 @@ export async function createPayable(data: z.input<typeof createPayableSchema>): 
     if (!parsed.success) return { success: false, error: "Dados invalidos" };
 
     try {
-        await db.insert(accountsPayable).values({
+        const [row] = await db.insert(accountsPayable).values({
             supplierName: parsed.data.fornecedor,
             category: parsed.data.categoria,
             value: parseCurrency(parsed.data.valor),
@@ -199,7 +199,16 @@ export async function createPayable(data: z.input<typeof createPayableSchema>): 
             status: "pending",
             approvalStatus: "pendente",
             submittedBy: session.user.id,
+        }).returning({ id: accountsPayable.id });
+
+        await db.insert(auditLogs).values({
+            userId: session.user.id,
+            action: "payable_created",
+            entityType: "payable",
+            entityId: row.id,
+            newData: { supplier: parsed.data.fornecedor, value: parsed.data.valor },
         });
+
         return { success: true };
     } catch (err) {
         console.error("[createPayable]", err);
@@ -227,6 +236,15 @@ export async function updatePayableStatus(
         }
 
         await db.update(accountsPayable).set(updates).where(eq(accountsPayable.id, id));
+
+        await db.insert(auditLogs).values({
+            userId: session.user.id,
+            action: "payable_status_updated",
+            entityType: "payable",
+            entityId: id,
+            newData: { status, approvalStatus },
+        });
+
         return { success: true };
     } catch (err) {
         console.error("[updatePayableStatus]", err);
@@ -240,6 +258,14 @@ export async function deletePayable(id: string): Promise<{ success: boolean; err
 
     try {
         await db.delete(accountsPayable).where(eq(accountsPayable.id, id));
+
+        await db.insert(auditLogs).values({
+            userId: session.user.id,
+            action: "payable_deleted",
+            entityType: "payable",
+            entityId: id,
+        });
+
         return { success: true };
     } catch (err) {
         console.error("[deletePayable]", err);

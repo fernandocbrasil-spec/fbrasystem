@@ -115,6 +115,8 @@ export type MockInvoice = {
     value: string;
     status: "Rascunho" | "Pendente Aprovacao" | "Aprovado" | "Faturado" | "Rejeitado" | "Cancelado";
     type: string;
+    nfseNumber?: string;
+    nfsePdfUrl?: string;
 };
 
 export const MOCK_INVOICES: MockInvoice[] = [

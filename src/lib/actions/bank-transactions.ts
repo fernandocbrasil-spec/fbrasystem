@@ -3,7 +3,7 @@
 import { z } from "zod";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
-import { bankTransactions } from "@/lib/db/schema";
+import { bankTransactions, auditLogs } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { MOCK_BANK_ENTRIES, type MockBankEntry } from "@/lib/mock-data";
 
@@ -61,6 +61,14 @@ export async function reconcileBankEntry(id: string): Promise<{ success: boolean
 
     try {
         await db.update(bankTransactions).set({ isReconciled: true }).where(eq(bankTransactions.id, id));
+
+        await db.insert(auditLogs).values({
+            userId: session.user.id,
+            action: "bank_entry_reconciled",
+            entityType: "bank_transaction",
+            entityId: id,
+        });
+
         return { success: true };
     } catch (err) {
         console.error("[reconcileBankEntry]", err);

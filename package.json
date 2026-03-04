@@ -12,8 +12,11 @@
     "format": "prettier --write \"src/**/*.{ts,tsx,css}\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,css}\"",
     "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit push",
     "db:push": "drizzle-kit push",
-    "db:seed": "tsx src/lib/db/seed.ts"
+    "db:seed": "tsx src/lib/db/seed.ts",
+    "db:seed-prod": "tsx src/lib/db/seed-prod.ts",
+    "db:check": "drizzle-kit check"
   },
   "dependencies": {
     "@auth/core": "^0.41.0",

@@ -3,13 +3,15 @@
 // =============================================================================
 // PF Advogados ERP — Approval Server Actions
 // Role is ALWAYS read from session — never from client parameters
-// TODO: Replace mock mutations with Drizzle DB operations when connected
 // =============================================================================
 
 import { auth } from "@/auth";
+import { db } from "@/lib/db";
+import { accountsPayable, arTitles, timeEntries, preInvoices, auditLogs } from "@/lib/db/schema";
 import { canUserApprove, type ApprovalEntityType, type UserRole } from "./types";
 import { approvalActionSchema, batchApprovalSchema } from "@/lib/schemas";
 import { rateLimitApproval } from "@/lib/rate-limit";
+import { eq, inArray, sql } from "drizzle-orm";
 
 type ApproveResult = { success: boolean; error?: string };
 
@@ -17,6 +19,67 @@ async function getSessionRole(): Promise<{ role: UserRole; userId: string } | nu
     const session = await auth();
     if (!session?.user?.role) return null;
     return { role: session.user.role as UserRole, userId: session.user.id ?? "unknown" };
+}
+
+// Entity table mapping for DB updates
+async function updateEntityStatus(
+    entityType: ApprovalEntityType,
+    entityId: string,
+    status: "aprovado" | "rejeitado",
+    userId: string,
+    comment?: string,
+): Promise<boolean> {
+    const now = new Date();
+
+    switch (entityType) {
+        case "payable":
+            await db.update(accountsPayable).set({
+                approvalStatus: status,
+                ...(status === "aprovado" ? { approvedBy: userId, approvedAt: now } : {}),
+                ...(status === "rejeitado" && comment ? { rejectionComment: comment } : {}),
+            }).where(eq(accountsPayable.id, entityId));
+            return true;
+
+        case "receivable":
+            await db.update(arTitles).set({
+                approvalStatus: status,
+                ...(status === "aprovado" ? { approvedBy: userId, approvedAt: now } : {}),
+                ...(status === "rejeitado" && comment ? { rejectionComment: comment } : {}),
+            }).where(eq(arTitles.id, entityId));
+            return true;
+
+        case "time_entry":
+            await db.update(timeEntries).set({
+                approvalStatus: status,
+                updatedAt: now,
+                ...(status === "aprovado" ? { approvedBy: userId, approvedAt: now } : {}),
+                ...(status === "rejeitado" && comment ? { rejectionComment: comment } : {}),
+            }).where(eq(timeEntries.id, entityId));
+            return true;
+
+        case "pre_invoice": {
+            const piStatus = status === "aprovado" ? "approved" : "rejected";
+            await db.update(preInvoices).set({
+                status: piStatus,
+                updatedAt: now,
+                ...(status === "aprovado" ? { approvedBy: userId, approvedAt: now } : {}),
+                ...(status === "rejeitado" && comment ? { notes: comment } : {}),
+            }).where(eq(preInvoices.id, entityId));
+
+            // If rejected, unlock time entries
+            if (status === "rejeitado") {
+                await db.update(timeEntries).set({
+                    preInvoiceId: null,
+                    approvalStatus: "aprovado",
+                    updatedAt: now,
+                }).where(eq(timeEntries.preInvoiceId, entityId));
+            }
+            return true;
+        }
+
+        default:
+            return false;
+    }
 }
 
 export async function approveEntity({
@@ -45,10 +108,21 @@ export async function approveEntity({
         return { success: false, error: "Permissao insuficiente para aprovar este tipo de entidade." };
     }
 
-    // TODO: Update DB record — set approvalStatus = "aprovado", approvedBy, approvedAt
-    // TODO: Insert audit log entry
-    console.log(`[Approval] Approved ${entityType} #${entityId} by user=${sessionUser.userId} role=${sessionUser.role}`);
-    return { success: true };
+    try {
+        await updateEntityStatus(entityType, entityId, "aprovado", sessionUser.userId);
+
+        await db.insert(auditLogs).values({
+            userId: sessionUser.userId,
+            action: `${entityType}_approved`,
+            entityType,
+            entityId,
+        });
+
+        return { success: true };
+    } catch (err) {
+        console.error(`[approveEntity] ${entityType} #${entityId}`, err);
+        return { success: false, error: "Erro ao aprovar entidade." };
+    }
 }
 
 export async function rejectEntity({
@@ -80,10 +154,22 @@ export async function rejectEntity({
         return { success: false, error: "Permissao insuficiente para rejeitar este tipo de entidade." };
     }
 
-    // TODO: Update DB record — set approvalStatus = "rejeitado", rejectionComment
-    // TODO: Insert audit log entry
-    console.log(`[Approval] Rejected ${entityType} #${entityId} by user=${sessionUser.userId} role=${sessionUser.role}: ${comment}`);
-    return { success: true };
+    try {
+        await updateEntityStatus(entityType, entityId, "rejeitado", sessionUser.userId, comment);
+
+        await db.insert(auditLogs).values({
+            userId: sessionUser.userId,
+            action: `${entityType}_rejected`,
+            entityType,
+            entityId,
+            newData: { comment },
+        });
+
+        return { success: true };
+    } catch (err) {
+        console.error(`[rejectEntity] ${entityType} #${entityId}`, err);
+        return { success: false, error: "Erro ao rejeitar entidade." };
+    }
 }
 
 export async function batchApproveEntities({
@@ -112,21 +198,58 @@ export async function batchApproveEntities({
         return { success: false, error: "Permissao insuficiente para aprovar este tipo de entidade." };
     }
 
-    // TODO: Batch update DB records
-    // TODO: Insert audit log entries
-    console.log(`[Approval] Batch approved ${entityIds.length} ${entityType}(s) by user=${sessionUser.userId} role=${sessionUser.role}`);
-    return { success: true };
+    try {
+        for (const entityId of entityIds) {
+            await updateEntityStatus(entityType, entityId, "aprovado", sessionUser.userId);
+        }
+
+        await db.insert(auditLogs).values({
+            userId: sessionUser.userId,
+            action: `${entityType}_batch_approved`,
+            entityType,
+            entityId: entityIds[0],
+            newData: { count: entityIds.length, ids: entityIds },
+        });
+
+        return { success: true };
+    } catch (err) {
+        console.error(`[batchApproveEntities] ${entityType}`, err);
+        return { success: false, error: "Erro ao aprovar entidades em lote." };
+    }
 }
 
 export async function getPendingApprovalCounts(): Promise<Record<ApprovalEntityType, number>> {
     const sessionUser = await getSessionRole();
     if (!sessionUser) return { payable: 0, receivable: 0, time_entry: 0, pre_invoice: 0 };
 
-    // TODO: Query DB for counts of pending approvals per entity type
-    return {
-        payable: 2,
-        receivable: 2,
-        time_entry: 2,
-        pre_invoice: 0,
-    };
+    try {
+        const [payableCount] = await db
+            .select({ count: sql<number>`count(*)` })
+            .from(accountsPayable)
+            .where(eq(accountsPayable.approvalStatus, "pendente"));
+
+        const [receivableCount] = await db
+            .select({ count: sql<number>`count(*)` })
+            .from(arTitles)
+            .where(inArray(arTitles.approvalStatus, ["desconto_solicitado", "baixa_solicitada"]));
+
+        const [teCount] = await db
+            .select({ count: sql<number>`count(*)` })
+            .from(timeEntries)
+            .where(eq(timeEntries.approvalStatus, "pendente"));
+
+        const [piCount] = await db
+            .select({ count: sql<number>`count(*)` })
+            .from(preInvoices)
+            .where(eq(preInvoices.status, "pending"));
+
+        return {
+            payable: Number(payableCount?.count ?? 0),
+            receivable: Number(receivableCount?.count ?? 0),
+            time_entry: Number(teCount?.count ?? 0),
+            pre_invoice: Number(piCount?.count ?? 0),
+        };
+    } catch {
+        return { payable: 0, receivable: 0, time_entry: 0, pre_invoice: 0 };
+    }
 }

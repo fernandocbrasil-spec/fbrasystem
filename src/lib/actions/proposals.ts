@@ -3,7 +3,7 @@
 import { z } from "zod";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
-import { proposals, clients, leads } from "@/lib/db/schema";
+import { proposals, clients, leads, auditLogs } from "@/lib/db/schema";
 import { formatCurrency, formatDateBR } from "@/lib/db/format";
 import { eq } from "drizzle-orm";
 import { MOCK_PROPOSALS, type MockProposal } from "@/lib/mock-data";
@@ -150,6 +150,15 @@ export async function createProposal(data: z.input<typeof createProposalSchema>)
             billingType: parsed.data.billingType,
             createdBy: session.user.id,
         }).returning({ id: proposals.id });
+
+        await db.insert(auditLogs).values({
+            userId: session.user.id,
+            action: "proposal_created",
+            entityType: "proposal",
+            entityId: row.id,
+            newData: { title: parsed.data.title, totalValue: parsed.data.totalValue },
+        });
+
         return { success: true, id: row.id };
     } catch (err) {
         console.error("[createProposal]", err);
@@ -166,6 +175,15 @@ export async function updateProposal(
 
     try {
         await db.update(proposals).set(data).where(eq(proposals.id, id));
+
+        await db.insert(auditLogs).values({
+            userId: session.user.id,
+            action: "proposal_updated",
+            entityType: "proposal",
+            entityId: id,
+            newData: { fields: Object.keys(data) },
+        });
+
         return { success: true };
     } catch (err) {
         console.error("[updateProposal]", err);

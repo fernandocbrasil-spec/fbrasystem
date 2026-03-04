@@ -1,17 +1,36 @@
 "use client"
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { PageHeader } from "@/components/ui/page-header";
 import { useToast } from "@/components/ui/toast";
-import { Clock, CheckSquare, FileText, User, ArrowLeft, Plus, X, ChevronRight, AlertTriangle } from "lucide-react";
+import { TimeEntryForm } from "@/components/time-entry/time-entry-form";
+import { TimeEntryTable } from "@/components/time-entry/time-entry-table";
+import { ApprovalBadge } from "@/components/approval/approval-badge";
+import { Clock, CheckSquare, FileText, User, ArrowLeft, Plus, X, ChevronRight, AlertTriangle, FolderOpen, ExternalLink, FileIcon, Loader2, Mic, Sparkles } from "lucide-react";
 import Link from "next/link";
 import {
+    getCaseById,
     getTasksForCase,
     createTask,
     updateTaskStatus,
     deleteTask,
     getCapStatusAction,
+    getTimeEntries,
+    submitTimeEntry,
+    retractTimeEntry,
+    deleteTimeEntry,
+    getCaseDriveInfo,
+    listCaseFiles,
+    createOrGetCaseFolder,
+    getCaseMeetings,
+    summarizeMeeting,
 } from "@/lib/actions";
+import type { CaseMeeting, SummarizeMeetingResult } from "@/lib/actions";
+import type { MeetingSummaryResult } from "@/lib/integrations/ai";
+import type { CaseDriveInfo } from "@/lib/actions";
+import type { GDriveFile } from "@/lib/integrations/gdrive";
+import type { MockCase } from "@/lib/mock-data";
+import type { MockTimeEntry } from "@/lib/mock-data";
 import type { TaskItem } from "@/lib/actions/tasks";
 import type { CapStatus } from "@/lib/billing/cap";
 
@@ -31,35 +50,13 @@ const UI_TO_DB_PRIORITY: Record<Priority, string> = {
     Alta: "high", Media: "medium", Baixa: "low",
 };
 
-// ─── Local time entry type (kept for inline form) ───────────────────────────
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
-type TimeEntry = {
-    id: string;
-    date: string;
-    professional: string;
-    description: string;
-    time: string;
-};
-
-const INITIAL_TIME_ENTRIES: TimeEntry[] = [
-    { id: "te-1", date: "25/02/2026", professional: "Carlos Oliveira", description: "Setup do projeto e coleta de balancetes mensais.", time: "02:30" },
-];
-
-function parseTimeToMinutes(t: string): number {
-    const parts = t.split(":");
-    if (parts.length !== 2) return 0;
-    const h = parseInt(parts[0], 10) || 0;
-    const m = parseInt(parts[1], 10) || 0;
-    return h * 60 + m;
+function formatDuration(minutes: number): string {
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
-
-function formatMinutes(total: number): string {
-    const h = Math.floor(total / 60).toString().padStart(2, "0");
-    const m = (total % 60).toString().padStart(2, "0");
-    return `${h}:${m}`;
-}
-
-// ─── Cap threshold colors ───────────────────────────────────────────────────
 
 function capColor(threshold: string): string {
     if (threshold === "ok") return "bg-emerald-500";
@@ -73,11 +70,21 @@ function capTextColor(threshold: string): string {
     return "text-red-600";
 }
 
+const STATUS_STYLES: Record<string, string> = {
+    Ativo: "bg-green-100 text-green-700",
+    "Em Pausa": "bg-amber-100 text-amber-700",
+    Encerrado: "bg-pf-grey/10 text-pf-grey",
+};
+
 // ─── Page ───────────────────────────────────────────────────────────────────
 
 export default function CaseDetailsPage({ params }: { params: { id: string } }) {
     const [activeTab, setActiveTab] = useState("tarefas");
     const { toast } = useToast();
+
+    // Case metadata (from DB)
+    const [caseData, setCaseData] = useState<MockCase | null>(null);
+    const [caseLoading, setCaseLoading] = useState(true);
 
     // Tasks state (server-persisted)
     const [tasks, setTasks] = useState<TaskItem[]>([]);
@@ -90,21 +97,35 @@ export default function CaseDetailsPage({ params }: { params: { id: string } }) 
     // Cap status
     const [capStatus, setCapStatus] = useState<CapStatus | null>(null);
 
-    // Time entries state (local for now)
-    const [localTimeEntries, setLocalTimeEntries] = useState<TimeEntry[]>(INITIAL_TIME_ENTRIES);
-    const profRef = useRef<HTMLSelectElement>(null);
-    const dateRef = useRef<HTMLInputElement>(null);
-    const timeRef = useRef<HTMLInputElement>(null);
-    const descRef = useRef<HTMLInputElement>(null);
+    // Time entries (from DB via server action)
+    const [timeEntries, setTimeEntries] = useState<MockTimeEntry[]>([]);
+    const [timeEntriesLoading, setTimeEntriesLoading] = useState(true);
+    const [showTimeForm, setShowTimeForm] = useState(false);
 
-    const caseData = {
-        number: "CA-2026-001",
-        client: "Grupo Sequoia",
-        title: "Assessoria Contabil e Fiscal Continua",
-        status: "Ativo",
-    };
+    // Drive state
+    const [driveInfo, setDriveInfo] = useState<CaseDriveInfo>({ folderId: null, folderUrl: null });
+    const [driveFiles, setDriveFiles] = useState<GDriveFile[]>([]);
+    const [driveLoading, setDriveLoading] = useState(true);
+    const [driveCreating, setDriveCreating] = useState(false);
 
-    // ── Load tasks from DB ──
+    // Meetings / AI
+    const [caseMeetings, setCaseMeetings] = useState<CaseMeeting[]>([]);
+    const [meetingsLoading, setMeetingsLoading] = useState(true);
+    const [summarizingId, setSummarizingId] = useState<string | null>(null);
+    const [summaryResult, setSummaryResult] = useState<MeetingSummaryResult | null>(null);
+    const [summaryMeetingId, setSummaryMeetingId] = useState<string | null>(null);
+
+    // ── Loaders ──
+
+    const loadCase = useCallback(async () => {
+        try {
+            const data = await getCaseById(params.id);
+            setCaseData(data);
+        } finally {
+            setCaseLoading(false);
+        }
+    }, [params.id]);
+
     const loadTasks = useCallback(async () => {
         try {
             const data = await getTasksForCase(params.id);
@@ -114,33 +135,102 @@ export default function CaseDetailsPage({ params }: { params: { id: string } }) 
         }
     }, [params.id]);
 
-    // ── Load cap status ──
     const loadCap = useCallback(async () => {
         const today = new Date().toISOString().split("T")[0];
         const cap = await getCapStatusAction(params.id, today);
         setCapStatus(cap);
     }, [params.id]);
 
+    const loadTimeEntries = useCallback(async () => {
+        try {
+            const data = await getTimeEntries({ caseId: params.id });
+            setTimeEntries(data);
+        } finally {
+            setTimeEntriesLoading(false);
+        }
+    }, [params.id]);
+
+    const loadDrive = useCallback(async () => {
+        try {
+            const info = await getCaseDriveInfo(params.id);
+            setDriveInfo(info);
+            if (info.folderId) {
+                const files = await listCaseFiles(params.id);
+                setDriveFiles(files);
+            }
+        } finally {
+            setDriveLoading(false);
+        }
+    }, [params.id]);
+
+    const loadMeetings = useCallback(async () => {
+        try {
+            const m = await getCaseMeetings(params.id);
+            setCaseMeetings(m);
+        } finally {
+            setMeetingsLoading(false);
+        }
+    }, [params.id]);
+
     useEffect(() => {
+        loadCase();
         loadTasks();
         loadCap();
-    }, [loadTasks, loadCap]);
+        loadTimeEntries();
+        loadDrive();
+        loadMeetings();
+    }, [loadCase, loadTasks, loadCap, loadTimeEntries, loadDrive, loadMeetings]);
+
+    const handleSummarizeMeeting = async (meetingId: string) => {
+        setSummarizingId(meetingId);
+        setSummaryResult(null);
+        const res = await summarizeMeeting(meetingId);
+        if (res.success && res.data) {
+            setSummaryResult(res.data);
+            setSummaryMeetingId(meetingId);
+            loadMeetings();
+            toast("Reuniao resumida com sucesso", "success");
+        } else {
+            toast(res.error ?? "Erro ao resumir reuniao", "error");
+        }
+        setSummarizingId(null);
+    };
+
+    // ── Tab definitions ──
 
     const TABS = [
         { id: "visao_geral", label: "Visao Geral", icon: <FileText className="h-4 w-4" /> },
         { id: "tarefas", label: "Tarefas (Kanban)", icon: <CheckSquare className="h-4 w-4" /> },
         { id: "horas", label: "Planilha de Horas", icon: <Clock className="h-4 w-4" /> },
+        { id: "arquivos", label: "Arquivos", icon: <FolderOpen className="h-4 w-4" /> },
+        { id: "reunioes", label: "Reunioes", icon: <Mic className="h-4 w-4" /> },
         { id: "equipe", label: "Equipe do Caso", icon: <User className="h-4 w-4" /> },
     ];
 
-    // Derived counts
+    // ── Derived data ──
+
     const todoTasks = tasks.filter((t) => t.status === "todo");
     const inProgressTasks = tasks.filter((t) => t.status === "in_progress");
     const doneTasks = tasks.filter((t) => t.status === "done");
 
-    const totalMinutes = localTimeEntries.reduce((acc, e) => acc + parseTimeToMinutes(e.time), 0);
+    const totalMinutes = timeEntries.reduce((s, e) => s + e.durationMinutes, 0);
+    const pendingApproval = timeEntries.filter((e) => e.approvalStatus === "pendente").length;
 
-    // ── Handlers ──
+    // Equipe: group time entries by professional
+    const equipeMap = new Map<string, { minutes: number; count: number; billableMinutes: number }>();
+    for (const e of timeEntries) {
+        const name = e.submittedBy ?? "Desconhecido";
+        const prev = equipeMap.get(name) ?? { minutes: 0, count: 0, billableMinutes: 0 };
+        prev.minutes += e.durationMinutes;
+        prev.count += 1;
+        if (e.isBillable) prev.billableMinutes += e.durationMinutes;
+        equipeMap.set(name, prev);
+    }
+    const equipe = Array.from(equipeMap.entries())
+        .map(([name, data]) => ({ name, ...data }))
+        .sort((a, b) => b.minutes - a.minutes);
+
+    // ── Task handlers ──
 
     const handleAddTask = async () => {
         if (!newTaskTitle.trim()) {
@@ -184,43 +274,56 @@ export default function CaseDetailsPage({ params }: { params: { id: string } }) 
         }
     };
 
-    const handleLancarHoras = () => {
-        const prof = profRef.current?.value || "";
-        const date = dateRef.current?.value || "";
-        const time = timeRef.current?.value || "";
-        const desc = descRef.current?.value || "";
+    // ── Time entry handlers ──
 
-        if (!date || !time || !desc.trim()) {
-            toast("Preencha todos os campos obrigatorios.", "warning");
-            return;
+    const handleSubmitEntry = async (id: string) => {
+        const result = await submitTimeEntry(id);
+        if (result.success) {
+            toast("Apontamento submetido para aprovacao.");
+            loadTimeEntries();
+            loadCap();
+        } else {
+            toast(result.error ?? "Erro ao submeter", "warning");
         }
-
-        const timeRegex = /^\d{1,2}:\d{2}$/;
-        if (!timeRegex.test(time)) {
-            toast("Formato de tempo invalido. Use hh:mm.", "warning");
-            return;
-        }
-
-        const [y, m, d] = date.split("-");
-        const formattedDate = `${d}/${m}/${y}`;
-
-        const entry: TimeEntry = {
-            id: `te-${Date.now()}`,
-            date: formattedDate,
-            professional: prof,
-            description: desc.trim(),
-            time,
-        };
-        setLocalTimeEntries((prev) => [...prev, entry]);
-
-        if (dateRef.current) dateRef.current.value = "";
-        if (timeRef.current) timeRef.current.value = "";
-        if (descRef.current) descRef.current.value = "";
-
-        toast("Horas lancadas com sucesso.");
     };
 
-    // ── Task Card Component ──
+    const handleRetractEntry = async (id: string) => {
+        const result = await retractTimeEntry(id);
+        if (result.success) {
+            toast("Apontamento retratado.");
+            loadTimeEntries();
+        } else {
+            toast(result.error ?? "Erro ao retratar", "warning");
+        }
+    };
+
+    const handleDeleteEntry = async (id: string) => {
+        const result = await deleteTimeEntry(id);
+        if (result.success) {
+            toast("Apontamento excluido.");
+            loadTimeEntries();
+            loadCap();
+        } else {
+            toast(result.error ?? "Erro ao excluir", "warning");
+        }
+    };
+
+    // ── Drive handlers ──
+
+    const handleCreateDriveFolder = async () => {
+        setDriveCreating(true);
+        const result = await createOrGetCaseFolder(params.id);
+        if (result.success) {
+            toast("Pasta criada no Google Drive.");
+            loadDrive();
+        } else {
+            toast(result.error ?? "Erro ao criar pasta", "warning");
+        }
+        setDriveCreating(false);
+    };
+
+    // ── Task Card ──
+
     const TaskCard = ({ task, actions }: { task: TaskItem; actions?: React.ReactNode }) => {
         const priority = DB_TO_UI_PRIORITY[task.priority] ?? "Media";
         return (
@@ -244,6 +347,34 @@ export default function CaseDetailsPage({ params }: { params: { id: string } }) 
         );
     };
 
+    // ── Loading state ──
+
+    if (caseLoading) {
+        return (
+            <div className="space-y-6">
+                <Link href="/casos" className="inline-flex items-center gap-2 mb-4 text-xs font-bold text-pf-grey hover:text-pf-blue uppercase tracking-widest transition-colors">
+                    <ArrowLeft className="h-3 w-3" />
+                    Voltar para Casos
+                </Link>
+                <div className="flex items-center justify-center py-20">
+                    <div className="w-5 h-5 border-2 border-pf-blue border-t-transparent rounded-full animate-spin" />
+                </div>
+            </div>
+        );
+    }
+
+    if (!caseData) {
+        return (
+            <div className="space-y-6">
+                <Link href="/casos" className="inline-flex items-center gap-2 mb-4 text-xs font-bold text-pf-grey hover:text-pf-blue uppercase tracking-widest transition-colors">
+                    <ArrowLeft className="h-3 w-3" />
+                    Voltar para Casos
+                </Link>
+                <div className="text-center py-20 text-sm text-pf-grey">Caso nao encontrado.</div>
+            </div>
+        );
+    }
+
     return (
         <div className="space-y-6">
             <div>
@@ -255,7 +386,7 @@ export default function CaseDetailsPage({ params }: { params: { id: string } }) 
                     title={caseData.title}
                     subtitle={`Cliente: ${caseData.client} | Processo Interno: ${caseData.number}`}
                     actions={
-                        <span className="inline-flex items-center rounded-sm bg-green-100 px-3 py-1 font-sans text-xs font-bold uppercase tracking-widest text-green-700">
+                        <span className={`inline-flex items-center rounded-sm px-3 py-1 font-sans text-xs font-bold uppercase tracking-widest ${STATUS_STYLES[caseData.status] ?? "bg-green-100 text-green-700"}`}>
                             {caseData.status}
                         </span>
                     }
@@ -280,7 +411,7 @@ export default function CaseDetailsPage({ params }: { params: { id: string } }) 
 
             <div className="mt-6">
 
-                {/* VISAO GERAL */}
+                {/* ══════════ VISAO GERAL ══════════ */}
                 {activeTab === "visao_geral" && (
                     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
                         {/* Cap Consumption Widget */}
@@ -300,7 +431,6 @@ export default function CaseDetailsPage({ params }: { params: { id: string } }) 
                                         </p>
                                     )}
                                 </div>
-                                {/* Progress bar */}
                                 <div className="w-full h-2 bg-pf-grey/10 rounded-full overflow-hidden">
                                     <div
                                         className={`h-full rounded-full transition-all ${capColor(capStatus.threshold)}`}
@@ -323,12 +453,13 @@ export default function CaseDetailsPage({ params }: { params: { id: string } }) 
                             </div>
                         )}
 
-                        {/* Task summary */}
-                        <div className="grid grid-cols-3 gap-3">
+                        {/* Summary KPIs */}
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                             {[
                                 { label: "A Fazer", count: todoTasks.length, color: "text-pf-grey" },
                                 { label: "Em Andamento", count: inProgressTasks.length, color: "text-pf-blue" },
                                 { label: "Concluido", count: doneTasks.length, color: "text-emerald-600" },
+                                { label: "Horas Apontadas", count: formatDuration(totalMinutes), color: "text-pf-blue" },
                             ].map((kpi) => (
                                 <div key={kpi.label} className="bg-white rounded-xl p-4 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
                                     <span className="text-[9px] font-bold uppercase tracking-[0.12em] text-pf-grey/50">{kpi.label}</span>
@@ -336,14 +467,21 @@ export default function CaseDetailsPage({ params }: { params: { id: string } }) 
                                 </div>
                             ))}
                         </div>
+
+                        {pendingApproval > 0 && (
+                            <div className="flex items-center gap-2 rounded-lg bg-orange-50 border border-orange-200 px-4 py-2.5">
+                                <AlertTriangle size={14} className="text-orange-500 shrink-0" />
+                                <p className="text-xs font-semibold text-orange-700">
+                                    {pendingApproval} apontamento{pendingApproval > 1 ? "s" : ""} pendente{pendingApproval > 1 ? "s" : ""} de aprovacao
+                                </p>
+                            </div>
+                        )}
                     </div>
                 )}
 
-                {/* KANBAN TAREFAS */}
+                {/* ══════════ KANBAN TAREFAS ══════════ */}
                 {activeTab === "tarefas" && (
                     <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
-
-                        {/* Guard error banner */}
                         {guardError && (
                             <div className="flex items-center gap-2 rounded-lg bg-red-50 border border-red-200 px-4 py-3">
                                 <AlertTriangle size={14} className="text-red-600 shrink-0" />
@@ -362,7 +500,6 @@ export default function CaseDetailsPage({ params }: { params: { id: string } }) 
                             </button>
                         </div>
 
-                        {/* Inline new task form */}
                         {showNewTask && (
                             <div className="flex items-end gap-3 rounded-lg border border-pf-blue/30 bg-white p-4 shadow-sm animate-in fade-in slide-in-from-top-2 duration-200">
                                 <div className="flex-1 space-y-1.5">
@@ -397,7 +534,6 @@ export default function CaseDetailsPage({ params }: { params: { id: string } }) 
                             </div>
                         )}
 
-                        {/* Loading */}
                         {tasksLoading && (
                             <div className="flex items-center justify-center py-16">
                                 <div className="w-5 h-5 border-2 border-pf-blue border-t-transparent rounded-full animate-spin" />
@@ -469,7 +605,7 @@ export default function CaseDetailsPage({ params }: { params: { id: string } }) 
                     </div>
                 )}
 
-                {/* TIME ENTRIES (HORAS) */}
+                {/* ══════════ HORAS ══════════ */}
                 {activeTab === "horas" && (
                     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
                         {/* Cap status header */}
@@ -492,66 +628,308 @@ export default function CaseDetailsPage({ params }: { params: { id: string } }) 
                         )}
 
                         <div className="rounded-lg border border-pf-grey/10 bg-white p-6 shadow-sm">
-                            <h3 className="font-sans text-lg font-bold tracking-tight text-pf-blue mb-6">Lancamento de Horas</h3>
+                            <div className="flex items-center justify-between mb-4">
+                                <h3 className="font-sans text-lg font-bold tracking-tight text-pf-blue">Apontamento de Horas</h3>
+                                <button
+                                    onClick={() => setShowTimeForm((v) => !v)}
+                                    className="flex items-center gap-2 rounded border border-pf-grey/30 bg-white px-3 py-1.5 text-xs font-bold text-pf-grey hover:border-pf-blue hover:text-pf-blue transition-colors shadow-sm"
+                                >
+                                    {showTimeForm ? <X className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
+                                    {showTimeForm ? "Cancelar" : "Lancar Horas"}
+                                </button>
+                            </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6 p-4 bg-pf-grey/5 rounded border border-pf-grey/10 items-end">
-                                <div className="space-y-2">
-                                    <label className="text-xs font-bold uppercase text-pf-grey">Profissional</label>
-                                    <select ref={profRef} className="w-full rounded-md border border-pf-grey/30 p-2 text-sm focus:border-pf-blue outline-none">
-                                        <option>Carlos Oliveira</option>
-                                        <option>Jose Rafael Feiteiro</option>
-                                    </select>
+                            {showTimeForm && (
+                                <div className="mb-6">
+                                    <TimeEntryForm
+                                        caseId={params.id}
+                                        onSuccess={() => {
+                                            loadTimeEntries();
+                                            loadCap();
+                                            setShowTimeForm(false);
+                                        }}
+                                        onCancel={() => setShowTimeForm(false)}
+                                    />
                                 </div>
-                                <div className="space-y-2">
-                                    <label className="text-xs font-bold uppercase text-pf-grey">Data</label>
-                                    <input ref={dateRef} type="date" className="w-full rounded-md border border-pf-grey/30 p-2 text-sm focus:border-pf-blue outline-none" />
+                            )}
+
+                            {timeEntriesLoading ? (
+                                <div className="flex items-center justify-center py-8">
+                                    <div className="w-5 h-5 border-2 border-pf-blue border-t-transparent rounded-full animate-spin" />
                                 </div>
-                                <div className="space-y-2">
-                                    <label className="text-xs font-bold uppercase text-pf-grey">Tempo (hh:mm)</label>
-                                    <input ref={timeRef} type="text" placeholder="ex: 01:30" className="w-full rounded-md border border-pf-grey/30 p-2 text-sm focus:border-pf-blue outline-none" />
-                                </div>
-                                <div>
-                                    <button
-                                        onClick={handleLancarHoras}
-                                        className="w-full rounded bg-pf-blue p-2 font-bold text-white hover:bg-pf-black transition-colors"
+                            ) : (
+                                <TimeEntryTable
+                                    entries={timeEntries}
+                                    onSubmit={handleSubmitEntry}
+                                    onRetract={handleRetractEntry}
+                                    onDelete={handleDeleteEntry}
+                                />
+                            )}
+                        </div>
+                    </div>
+                )}
+
+                {/* ══════════ ARQUIVOS ══════════ */}
+                {activeTab === "arquivos" && (
+                    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                        <div className="rounded-lg border border-pf-grey/10 bg-white p-6 shadow-sm">
+                            <div className="flex items-center justify-between mb-4">
+                                <h3 className="font-sans text-lg font-bold tracking-tight text-pf-blue">Google Drive</h3>
+                                {driveInfo.folderUrl && (
+                                    <a
+                                        href={driveInfo.folderUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="flex items-center gap-2 rounded border border-pf-grey/30 bg-white px-3 py-1.5 text-xs font-bold text-pf-grey hover:border-pf-blue hover:text-pf-blue transition-colors shadow-sm"
                                     >
-                                        Lancar
+                                        <ExternalLink className="h-3.5 w-3.5" />
+                                        Abrir no Drive
+                                    </a>
+                                )}
+                            </div>
+
+                            {driveLoading ? (
+                                <div className="flex items-center justify-center py-12">
+                                    <div className="w-5 h-5 border-2 border-pf-blue border-t-transparent rounded-full animate-spin" />
+                                </div>
+                            ) : !driveInfo.folderId ? (
+                                <div className="text-center py-12">
+                                    <FolderOpen className="h-10 w-10 text-pf-grey/30 mx-auto mb-3" />
+                                    <p className="text-sm text-pf-grey/50 mb-4">
+                                        Nenhuma pasta do Drive vinculada a este caso.
+                                    </p>
+                                    <button
+                                        onClick={handleCreateDriveFolder}
+                                        disabled={driveCreating}
+                                        className="inline-flex items-center gap-2 rounded bg-pf-blue px-4 py-2 text-sm font-bold text-white hover:bg-pf-black transition-colors disabled:opacity-50"
+                                    >
+                                        {driveCreating ? (
+                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                        ) : (
+                                            <FolderOpen className="h-4 w-4" />
+                                        )}
+                                        Criar Pasta no Drive
                                     </button>
                                 </div>
-                                <div className="space-y-2 md:col-span-4 mt-2">
-                                    <label className="text-xs font-bold uppercase text-pf-grey">Descricao da Atividade</label>
-                                    <input ref={descRef} type="text" placeholder="Qual tarefa foi executada?" className="w-full rounded-md border border-pf-grey/30 p-2 text-sm focus:border-pf-blue outline-none" />
-                                </div>
-                            </div>
+                            ) : (
+                                <>
+                                    {driveFiles.length === 0 ? (
+                                        <p className="text-sm text-pf-grey/50 py-8 text-center">
+                                            Pasta criada — nenhum arquivo encontrado.
+                                        </p>
+                                    ) : (
+                                        <table className="w-full text-left font-sans text-sm whitespace-nowrap">
+                                            <thead>
+                                                <tr className="border-b border-pf-grey/10 text-pf-grey text-[10px] font-semibold uppercase tracking-wider">
+                                                    <th className="px-4 py-2.5">Arquivo</th>
+                                                    <th className="px-4 py-2.5">Tipo</th>
+                                                    <th className="px-4 py-2.5 text-right">Tamanho</th>
+                                                    <th className="px-4 py-2.5 text-right">Modificado</th>
+                                                    <th className="px-4 py-2.5 text-right">Link</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-pf-grey/5">
+                                                {driveFiles.map((file) => (
+                                                    <tr key={file.id} className="hover:bg-white transition-colors">
+                                                        <td className="px-4 py-2.5">
+                                                            <div className="flex items-center gap-2">
+                                                                <FileIcon className="h-4 w-4 text-pf-grey/40 shrink-0" />
+                                                                <span className="text-xs font-medium text-pf-black truncate max-w-[250px]">{file.name}</span>
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-4 py-2.5">
+                                                            <span className="text-[10px] font-bold uppercase tracking-widest text-pf-grey">
+                                                                {file.mimeType.split("/").pop()?.split(".").pop() ?? file.mimeType}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-4 py-2.5 text-right font-mono text-xs text-pf-grey">
+                                                            {file.size ? `${Math.round(file.size / 1024)} KB` : "—"}
+                                                        </td>
+                                                        <td className="px-4 py-2.5 text-right text-xs text-pf-grey">
+                                                            {new Date(file.modifiedTime).toLocaleDateString("pt-BR")}
+                                                        </td>
+                                                        <td className="px-4 py-2.5 text-right">
+                                                            <a
+                                                                href={file.webViewLink}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                                className="inline-flex items-center gap-1 text-xs font-semibold text-pf-blue hover:underline"
+                                                            >
+                                                                <ExternalLink className="h-3 w-3" />
+                                                                Abrir
+                                                            </a>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    )}
+                                </>
+                            )}
+                        </div>
+                    </div>
+                )}
 
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-left font-sans text-sm">
-                                    <thead>
-                                        <tr className="border-b border-pf-grey/10 text-pf-grey text-xs uppercase tracking-wider">
-                                            <th className="pb-2 font-semibold">Data</th>
-                                            <th className="pb-2 font-semibold">Profissional</th>
-                                            <th className="pb-2 font-semibold">Descricao</th>
-                                            <th className="pb-2 font-semibold text-right">Tempo</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-pf-grey/10">
-                                        {localTimeEntries.map((entry) => (
-                                            <tr key={entry.id} className="hover:bg-pf-blue/5">
-                                                <td className="py-3">{entry.date}</td>
-                                                <td className="py-3 font-semibold text-pf-black">{entry.professional}</td>
-                                                <td className="py-3 text-pf-grey">{entry.description}</td>
-                                                <td className="py-3 text-right font-mono font-bold text-pf-blue">{entry.time}</td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                    <tfoot>
-                                        <tr className="bg-pf-grey/5">
-                                            <td colSpan={3} className="py-3 text-right font-bold text-pf-black">TOTAL APONTADO:</td>
-                                            <td className="py-3 text-right font-mono font-bold text-pf-blue">{formatMinutes(totalMinutes)}</td>
-                                        </tr>
-                                    </tfoot>
-                                </table>
-                            </div>
+                {/* ══════════ REUNIOES ══════════ */}
+                {activeTab === "reunioes" && (
+                    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                        <div className="rounded-lg border border-pf-grey/10 bg-white p-6 shadow-sm">
+                            <h3 className="font-sans text-lg font-bold tracking-tight text-pf-blue mb-4">Reunioes do Caso</h3>
+
+                            {meetingsLoading ? (
+                                <div className="flex items-center justify-center py-12 text-pf-grey">
+                                    <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                                    <span className="text-xs">Carregando reunioes...</span>
+                                </div>
+                            ) : caseMeetings.length === 0 ? (
+                                <p className="text-sm text-pf-grey/50 py-8 text-center">
+                                    Nenhuma reuniao registrada para este caso.
+                                </p>
+                            ) : (
+                                <div className="space-y-0 divide-y divide-pf-grey/5">
+                                    {caseMeetings.map((mtg) => (
+                                        <div key={mtg.id} className="py-3 px-2 hover:bg-background transition-colors rounded">
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-pf-grey/10">
+                                                        <Mic className="h-3.5 w-3.5 text-pf-grey" />
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-sm font-semibold text-pf-black">{mtg.title}</p>
+                                                        <p className="text-[10px] text-pf-grey/50">
+                                                            {mtg.date}{mtg.participants.length > 0 && ` · ${mtg.participants.join(", ")}`}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    {mtg.hasSummary && (
+                                                        <span className="text-[10px] font-bold uppercase tracking-widest text-green-600 bg-green-50 px-2 py-0.5 rounded">
+                                                            Resumido
+                                                        </span>
+                                                    )}
+                                                    <button
+                                                        onClick={() => handleSummarizeMeeting(mtg.id)}
+                                                        disabled={summarizingId === mtg.id}
+                                                        className="flex items-center gap-1.5 rounded-md border border-pf-blue/20 bg-pf-blue/5 px-3 py-1.5 text-xs font-bold text-pf-blue transition-colors hover:bg-pf-blue/10 disabled:opacity-50"
+                                                    >
+                                                        {summarizingId === mtg.id ? (
+                                                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                                        ) : (
+                                                            <Sparkles className="h-3.5 w-3.5" />
+                                                        )}
+                                                        {mtg.hasSummary ? "Resumir Novamente" : "Resumir Reuniao"}
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            {/* Show summary inline if it's the one just summarized */}
+                                            {summaryMeetingId === mtg.id && summaryResult && (
+                                                <div className="mt-3 ml-11 space-y-3 border-l-2 border-pf-blue/20 pl-4">
+                                                    <div>
+                                                        <p className="text-[10px] font-bold uppercase tracking-widest text-pf-grey mb-1">Resumo</p>
+                                                        <p className="text-xs text-pf-black leading-relaxed">{summaryResult.summary}</p>
+                                                    </div>
+                                                    {summaryResult.keyPoints.length > 0 && (
+                                                        <div>
+                                                            <p className="text-[10px] font-bold uppercase tracking-widest text-pf-grey mb-1">Pontos Chave</p>
+                                                            <ul className="space-y-0.5">
+                                                                {summaryResult.keyPoints.map((kp, i) => (
+                                                                    <li key={i} className="text-xs text-pf-black flex gap-1.5">
+                                                                        <span className="text-pf-blue font-bold">·</span> {kp}
+                                                                    </li>
+                                                                ))}
+                                                            </ul>
+                                                        </div>
+                                                    )}
+                                                    {summaryResult.actionItems.length > 0 && (
+                                                        <div>
+                                                            <p className="text-[10px] font-bold uppercase tracking-widest text-pf-grey mb-1">Acoes</p>
+                                                            <ul className="space-y-0.5">
+                                                                {summaryResult.actionItems.map((ai, i) => (
+                                                                    <li key={i} className="text-xs text-pf-black flex gap-1.5">
+                                                                        <span className="text-amber-600 font-bold">→</span>
+                                                                        {ai.description}
+                                                                        {ai.assignee && <span className="text-pf-grey ml-1">({ai.assignee})</span>}
+                                                                    </li>
+                                                                ))}
+                                                            </ul>
+                                                        </div>
+                                                    )}
+                                                    {summaryResult.nextSteps.length > 0 && (
+                                                        <div>
+                                                            <p className="text-[10px] font-bold uppercase tracking-widest text-pf-grey mb-1">Proximos Passos</p>
+                                                            <ul className="space-y-0.5">
+                                                                {summaryResult.nextSteps.map((ns, i) => (
+                                                                    <li key={i} className="text-xs text-pf-black flex gap-1.5">
+                                                                        <span className="text-green-600 font-bold">→</span> {ns}
+                                                                    </li>
+                                                                ))}
+                                                            </ul>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+
+                                            {/* Show existing summary if it's NOT the one just summarized */}
+                                            {mtg.hasSummary && summaryMeetingId !== mtg.id && mtg.summary && (
+                                                <div className="mt-2 ml-11">
+                                                    <p className="text-xs text-pf-grey leading-relaxed">{mtg.summary}</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
+
+                {/* ══════════ EQUIPE ══════════ */}
+                {activeTab === "equipe" && (
+                    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                        <div className="rounded-lg border border-pf-grey/10 bg-white p-6 shadow-sm">
+                            <h3 className="font-sans text-lg font-bold tracking-tight text-pf-blue mb-4">Equipe do Caso</h3>
+
+                            {equipe.length === 0 ? (
+                                <p className="text-sm text-pf-grey/50 py-8 text-center">
+                                    Nenhum profissional com horas apontadas neste caso.
+                                </p>
+                            ) : (
+                                <div className="space-y-0 divide-y divide-pf-grey/5">
+                                    {equipe.map((member) => {
+                                        const initials = member.name
+                                            .split(" ")
+                                            .filter(Boolean)
+                                            .slice(0, 2)
+                                            .map((w) => w[0])
+                                            .join("")
+                                            .toUpperCase();
+                                        const billablePct = member.minutes > 0 ? Math.round((member.billableMinutes / member.minutes) * 100) : 0;
+
+                                        return (
+                                            <div key={member.name} className="flex items-center justify-between py-3 hover:bg-background transition-colors px-2 rounded">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-pf-blue text-white text-[10px] font-bold">
+                                                        {initials}
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-sm font-semibold text-pf-black">{member.name}</p>
+                                                        <p className="text-[10px] text-pf-grey/50">
+                                                            {member.count} lancamento{member.count > 1 ? "s" : ""}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-4">
+                                                    <div className="text-right">
+                                                        <p className="font-mono text-sm font-bold text-pf-blue">{formatDuration(member.minutes)}</p>
+                                                        <p className="text-[10px] text-pf-grey/50">{billablePct}% faturavel</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
                         </div>
                     </div>
                 )}

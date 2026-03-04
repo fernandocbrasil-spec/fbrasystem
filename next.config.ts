@@ -2,7 +2,8 @@ import type { NextConfig } from "next";
 
 const cspHeader = [
     "default-src 'self'",
-    "script-src 'self' 'unsafe-eval' 'unsafe-inline'",
+    // unsafe-inline needed for Next.js inline scripts; unsafe-eval removed for production
+    "script-src 'self' 'unsafe-inline'",
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' blob: data:",
     "font-src 'self' data:",
@@ -10,6 +11,7 @@ const cspHeader = [
     "frame-ancestors 'none'",
     "base-uri 'self'",
     "form-action 'self'",
+    "upgrade-insecure-requests",
 ].join("; ");
 
 const nextConfig: NextConfig = {

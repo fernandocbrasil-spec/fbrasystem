@@ -29,12 +29,23 @@ export default auth((req) => {
     const isLoggedIn = !!req.auth;
     const isAuthPage = req.nextUrl.pathname.startsWith("/login");
     const isApiAuthRoute = req.nextUrl.pathname.startsWith("/api/auth");
+    const isHealthCheck = req.nextUrl.pathname === "/api/health";
+    const isAccessDenied = req.nextUrl.pathname === "/acesso-negado";
 
-    if (isApiAuthRoute) return;
+    // Public routes — no auth required
+    if (isApiAuthRoute || isHealthCheck) return;
 
     if (isAuthPage) {
         if (isLoggedIn) {
             return Response.redirect(new URL("/dashboard", req.nextUrl));
+        }
+        return;
+    }
+
+    // Allow access-denied page without role check (but require login)
+    if (isAccessDenied) {
+        if (!isLoggedIn) {
+            return Response.redirect(new URL("/login", req.nextUrl));
         }
         return;
     }
@@ -47,11 +58,13 @@ export default auth((req) => {
     const userRole = (req.auth?.user as { role?: string } | undefined)?.role ?? "";
     for (const [route, allowedRoles] of sortedRoutes) {
         if (req.nextUrl.pathname.startsWith(route) && !allowedRoles.includes(userRole)) {
-            return Response.redirect(new URL("/dashboard", req.nextUrl));
+            const denied = new URL("/acesso-negado", req.nextUrl);
+            denied.searchParams.set("from", req.nextUrl.pathname);
+            return Response.redirect(denied);
         }
     }
 });
 
 export const config = {
-    matcher: ["/((?!api|_next/static|_next/image|favicon.ico).*)"],
+    matcher: ["/((?!api/health|api/auth|_next/static|_next/image|favicon.ico).*)"],
 };

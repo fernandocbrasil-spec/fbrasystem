@@ -5,6 +5,25 @@ vi.mock("@/auth", () => ({
     auth: vi.fn(),
 }));
 
+// Mock DB module — approval actions now persist to DB
+vi.mock("@/lib/db", () => ({
+    db: {
+        update: vi.fn(() => ({
+            set: vi.fn(() => ({
+                where: vi.fn(() => Promise.resolve()),
+            })),
+        })),
+        insert: vi.fn(() => ({
+            values: vi.fn(() => Promise.resolve()),
+        })),
+        select: vi.fn(() => ({
+            from: vi.fn(() => ({
+                where: vi.fn(() => Promise.resolve([{ count: 0 }])),
+            })),
+        })),
+    },
+}));
+
 import { auth } from "@/auth";
 import { approveEntity, rejectEntity, batchApproveEntities, getPendingApprovalCounts } from "./actions";
 

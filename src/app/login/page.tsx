@@ -1,11 +1,17 @@
 import { signIn } from "@/auth";
 
+const isDevMode = process.env.NODE_ENV === "development";
+const hasAzureAD = !!(
+    process.env.AZURE_AD_CLIENT_ID &&
+    process.env.AZURE_AD_CLIENT_SECRET &&
+    process.env.AZURE_AD_TENANT_ID
+);
+
 export default function LoginPage() {
     return (
         <div className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-pf-black text-white">
 
             {/* Background — B&W architectural (CSS gradient fallback) */}
-            {/* TODO: replace with actual B&W photo at public/login-bg.jpg */}
             <div className="absolute inset-0 z-0">
                 <div className="absolute inset-0 bg-gradient-to-b from-pf-black/40 via-pf-black/70 to-pf-black" />
                 <div
@@ -18,7 +24,6 @@ export default function LoginPage() {
                         `,
                     }}
                 />
-                {/* Radial highlight from above (simulating sky between buildings) */}
                 <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_0%,rgba(255,255,255,0.08)_0%,transparent_60%)]" />
             </div>
 
@@ -60,28 +65,65 @@ export default function LoginPage() {
                 </div>
 
                 {/* CTAs */}
-                <div className="flex items-center justify-center gap-4 pt-4">
-                    <form
-                        action={async () => {
-                            "use server";
-                            await signIn("credentials", { redirectTo: "/dashboard" });
-                        }}
-                    >
-                        <button
-                            type="submit"
-                            className="flex items-center gap-2.5 rounded-full bg-pf-blue px-8 py-3 text-sm font-bold text-white tracking-wide transition-all hover:bg-blue-700 hover:shadow-[0_0_20px_rgba(33,46,198,0.4)] active:scale-95"
+                <div className="flex flex-col items-center gap-4 pt-4">
+                    {/* Azure AD (production) */}
+                    {hasAzureAD && (
+                        <form
+                            action={async () => {
+                                "use server";
+                                await signIn("microsoft-entra-id", { redirectTo: "/dashboard" });
+                            }}
                         >
-                            <svg className="h-4 w-4 fill-current" viewBox="0 0 23 23">
-                                <path d="M11.46 0H1.89C.85 0 0 .85 0 1.89v9.57h11.46V0zM23 0h-9.57v11.46H23V0zM11.46 11.54H0V21.1c0 1.05.85 1.9 1.89 1.9h9.57V11.54zM23 11.54h-11.54V23H21.1c1.05 0 1.9-.85 1.9-1.89V11.54z" />
-                            </svg>
-                            Acessar Dashboard
-                        </button>
-                    </form>
+                            <button
+                                type="submit"
+                                className="flex items-center gap-2.5 rounded-full bg-pf-blue px-8 py-3 text-sm font-bold text-white tracking-wide transition-all hover:bg-blue-700 hover:shadow-[0_0_20px_rgba(33,46,198,0.4)] active:scale-95"
+                            >
+                                <svg className="h-4 w-4 fill-current" viewBox="0 0 23 23">
+                                    <path d="M11.46 0H1.89C.85 0 0 .85 0 1.89v9.57h11.46V0zM23 0h-9.57v11.46H23V0zM11.46 11.54H0V21.1c0 1.05.85 1.9 1.89 1.9h9.57V11.54zM23 11.54h-11.54V23H21.1c1.05 0 1.9-.85 1.9-1.89V11.54z" />
+                                </svg>
+                                Entrar com Microsoft
+                            </button>
+                        </form>
+                    )}
+
+                    {/* Dev mock (development only) */}
+                    {isDevMode && (
+                        <form
+                            action={async () => {
+                                "use server";
+                                await signIn("credentials", { redirectTo: "/dashboard" });
+                            }}
+                        >
+                            <button
+                                type="submit"
+                                className={`flex items-center gap-2.5 rounded-full px-8 py-3 text-sm font-bold tracking-wide transition-all active:scale-95 ${
+                                    hasAzureAD
+                                        ? "border border-pf-grey/30 text-pf-grey hover:bg-white/5"
+                                        : "bg-pf-blue text-white hover:bg-blue-700 hover:shadow-[0_0_20px_rgba(33,46,198,0.4)]"
+                                }`}
+                            >
+                                <svg className="h-4 w-4 fill-current" viewBox="0 0 23 23">
+                                    <path d="M11.46 0H1.89C.85 0 0 .85 0 1.89v9.57h11.46V0zM23 0h-9.57v11.46H23V0zM11.46 11.54H0V21.1c0 1.05.85 1.9 1.89 1.9h9.57V11.54zM23 11.54h-11.54V23H21.1c1.05 0 1.9-.85 1.9-1.89V11.54z" />
+                                </svg>
+                                Dev Login (Mock)
+                            </button>
+                        </form>
+                    )}
+
+                    {/* No providers available */}
+                    {!hasAzureAD && !isDevMode && (
+                        <p className="text-sm text-red-400">
+                            Nenhum provedor de autenticacao configurado.
+                            Verifique as variaveis de ambiente.
+                        </p>
+                    )}
                 </div>
 
-                <p className="text-[10px] text-pf-grey/40 italic">
-                    Mock Mode — Acesso direto ao painel
-                </p>
+                {isDevMode && (
+                    <p className="text-[10px] text-pf-grey/40 italic">
+                        Ambiente de Desenvolvimento
+                    </p>
+                )}
             </div>
 
             {/* Bottom accent bar */}
