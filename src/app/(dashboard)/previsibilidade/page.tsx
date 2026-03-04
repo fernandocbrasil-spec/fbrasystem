@@ -2,13 +2,14 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { PageHeader } from "@/components/ui/page-header";
+import { PageShell } from "@/components/ui/page-shell";
+import { KpiCard } from "@/components/ui/kpi-card";
 import {
     TrendingUp,
     TrendingDown,
     AlertTriangle,
     Receipt,
     DollarSign,
-    type LucideIcon,
 } from "lucide-react";
 import { fetchRollingForecast, fetchRiskItems } from "@/lib/actions";
 import type { RollingForecast, MonthForecast, RiskItem } from "@/lib/billing/forecast";
@@ -34,18 +35,6 @@ const RISK_LABELS: Record<RiskItem["tipo"], string> = {
 
 // ─── Sub-components ──────────────────────────────────────────────────────────
 
-function KpiCard({ label, value, icon: Icon, color }: { label: string; value: string; icon: LucideIcon; color: string }) {
-    return (
-        <div className="bg-white rounded-xl p-4 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
-            <div className="flex items-center gap-1.5 mb-2">
-                <Icon size={12} className={`${color} opacity-60`} />
-                <span className="text-[9px] font-bold uppercase tracking-[0.12em] text-pf-grey/50">{label}</span>
-            </div>
-            <p className="font-sans text-xl font-bold text-pf-black leading-none tracking-tight">{value}</p>
-        </div>
-    );
-}
-
 function ForecastRow({
     label,
     field,
@@ -68,10 +57,10 @@ function ForecastRow({
         highlight === "blue" ? "border-l-pf-blue" :
         highlight === "green" ? "border-l-emerald-500" :
         highlight === "red" ? "border-l-red-500" : "";
-    const textClass = muted ? "text-pf-grey/60" : negative ? "text-red-600" : "text-pf-black";
+    const textClass = muted ? "text-pf-grey/50" : negative ? "text-red-600" : "text-pf-black";
 
     return (
-        <tr className={`border-b border-pf-grey/5 ${highlight ? `border-l-[3px] ${highlightBorder}` : ""} hover:bg-background transition-colors`}>
+        <tr className={`border-b border-pf-grey/10 ${highlight ? `border-l-[3px] ${highlightBorder}` : ""} hover:bg-white transition-colors`}>
             <td className={`px-5 py-2.5 text-[11px] ${bold ? "font-bold" : "font-medium"} ${textClass}`}>{label}</td>
             {months.map((m) => {
                 const val = m[field] as number;
@@ -124,24 +113,24 @@ export default function PrevisibilidadePage() {
     const totalBest = forecast.months.reduce((s, m) => s + m.netCashBest, 0);
 
     return (
-        <div className="max-w-[1400px] mx-auto space-y-5">
+        <PageShell>
             <PageHeader
                 title="Previsibilidade Financeira"
                 subtitle="Projecao rolling 3 meses — atualizado em tempo real"
             />
 
             {/* KPI Strip: 4 summary cards */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                <KpiCard label="Receita Projetada (90d)" value={fmtKpi(totalRevenue)} icon={Receipt} color="text-pf-blue" />
-                <KpiCard label="Caixa Liquido (90d)" value={fmtKpi(totalNet)} icon={DollarSign} color="text-emerald-600" />
-                <KpiCard label="Cenario Pessimista" value={fmtKpi(totalWorst)} icon={TrendingDown} color="text-red-500" />
-                <KpiCard label="Cenario Otimista" value={fmtKpi(totalBest)} icon={TrendingUp} color="text-emerald-600" />
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <KpiCard label="Receita Projetada (90d)" value={fmtKpi(totalRevenue)} icon={Receipt} iconColor="text-pf-blue" />
+                <KpiCard label="Caixa Liquido (90d)" value={fmtKpi(totalNet)} icon={DollarSign} iconColor="text-emerald-600" />
+                <KpiCard label="Cenario Pessimista" value={fmtKpi(totalWorst)} icon={TrendingDown} iconColor="text-red-500" />
+                <KpiCard label="Cenario Otimista" value={fmtKpi(totalBest)} icon={TrendingUp} iconColor="text-emerald-600" />
             </div>
 
             {/* Monthly Forecast Table */}
-            <div className="bg-white rounded-xl shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
+            <div className="bg-white rounded-xl border border-pf-grey/10 overflow-hidden">
                 <div className="px-5 py-4 border-b border-pf-grey/10">
-                    <h3 className="text-[10px] font-bold uppercase tracking-[0.15em] text-pf-grey/70">
+                    <h3 className="text-[10px] font-bold uppercase tracking-[0.12em] text-pf-grey/50">
                         Projecao Mensal
                     </h3>
                 </div>
@@ -181,9 +170,9 @@ export default function PrevisibilidadePage() {
             </div>
 
             {/* Risk Items */}
-            <div className="bg-white rounded-xl shadow-[0_1px_3px_rgba(0,0,0,0.04)] overflow-hidden">
+            <div className="bg-white rounded-xl border border-pf-grey/10 overflow-hidden">
                 <div className="px-5 py-4 border-b border-pf-grey/10 flex items-center justify-between">
-                    <h3 className="text-[10px] font-bold uppercase tracking-[0.15em] text-pf-grey/70">
+                    <h3 className="text-[10px] font-bold uppercase tracking-[0.12em] text-pf-grey/50">
                         Top 10 Itens de Risco
                     </h3>
                     <div className="flex items-center gap-1.5">
@@ -200,7 +189,7 @@ export default function PrevisibilidadePage() {
                     {risks.map((risk) => {
                         const sev = SEVERITY_COLORS[risk.severity];
                         return (
-                            <div key={risk.id} className="flex items-center justify-between px-5 py-3 hover:bg-background transition-colors border-b border-pf-grey/5 last:border-0">
+                            <div key={risk.id} className="flex items-center justify-between px-5 py-3 hover:bg-white transition-colors border-b border-pf-grey/10 last:border-0">
                                 <div className="flex items-center gap-3">
                                     <span className={`w-2 h-2 rounded-full shrink-0 ${sev.dot}`} />
                                     <div>
@@ -234,6 +223,6 @@ export default function PrevisibilidadePage() {
                     Atualizado: {new Date(forecast.generatedAt).toLocaleString("pt-BR")}
                 </p>
             </div>
-        </div>
+        </PageShell>
     );
 }

@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { PageHeader } from "@/components/ui/page-header";
+import { PageShell } from "@/components/ui/page-shell";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { useToast } from "@/components/ui/toast";
 import { TimeEntryForm } from "@/components/time-entry/time-entry-form";
 import { TimeEntryTable } from "@/components/time-entry/time-entry-table";
@@ -37,11 +39,6 @@ import type { CapStatus } from "@/lib/billing/cap";
 // ─── Priority mapping ───────────────────────────────────────────────────────
 
 type Priority = "Alta" | "Media" | "Baixa";
-const PRIORITY_STYLES: Record<Priority, string> = {
-    Alta: "bg-red-100 text-red-700",
-    Media: "bg-orange-100 text-orange-700",
-    Baixa: "bg-blue-100 text-blue-700",
-};
 
 const DB_TO_UI_PRIORITY: Record<string, Priority> = {
     urgent: "Alta", high: "Alta", medium: "Media", low: "Baixa",
@@ -70,11 +67,6 @@ function capTextColor(threshold: string): string {
     return "text-red-600";
 }
 
-const STATUS_STYLES: Record<string, string> = {
-    Ativo: "bg-green-100 text-green-700",
-    "Em Pausa": "bg-amber-100 text-amber-700",
-    Encerrado: "bg-pf-grey/10 text-pf-grey",
-};
 
 // ─── Page ───────────────────────────────────────────────────────────────────
 
@@ -327,13 +319,13 @@ export default function CaseDetailsPage({ params }: { params: { id: string } }) 
     const TaskCard = ({ task, actions }: { task: TaskItem; actions?: React.ReactNode }) => {
         const priority = DB_TO_UI_PRIORITY[task.priority] ?? "Media";
         return (
-            <div className="cursor-pointer rounded-lg border border-pf-grey/10 bg-white p-4 shadow-sm hover:border-pf-blue/40 group">
+            <div className="cursor-pointer rounded-lg border border-pf-grey/10 bg-white p-4 hover:border-pf-blue/40 group">
                 <div className="flex items-start justify-between">
                     <p className={`font-sans text-sm font-semibold text-pf-black mb-2 ${task.status === "done" ? "line-through opacity-70" : ""}`}>{task.title}</p>
                     {actions}
                 </div>
                 <div className="flex items-center justify-between mt-3 text-xs text-pf-grey">
-                    <div className={`rounded px-2 py-0.5 font-bold ${PRIORITY_STYLES[priority]}`}>{priority}</div>
+                    <StatusBadge status={priority} />
                     <div className="flex items-center gap-2">
                         {task.dueDate && (
                             <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> {task.dueDate.slice(5).split("-").reverse().join("/")}</span>
@@ -351,7 +343,7 @@ export default function CaseDetailsPage({ params }: { params: { id: string } }) 
 
     if (caseLoading) {
         return (
-            <div className="space-y-6">
+            <PageShell>
                 <Link href="/casos" className="inline-flex items-center gap-2 mb-4 text-xs font-bold text-pf-grey hover:text-pf-blue uppercase tracking-widest transition-colors">
                     <ArrowLeft className="h-3 w-3" />
                     Voltar para Casos
@@ -359,24 +351,24 @@ export default function CaseDetailsPage({ params }: { params: { id: string } }) 
                 <div className="flex items-center justify-center py-20">
                     <div className="w-5 h-5 border-2 border-pf-blue border-t-transparent rounded-full animate-spin" />
                 </div>
-            </div>
+            </PageShell>
         );
     }
 
     if (!caseData) {
         return (
-            <div className="space-y-6">
+            <PageShell>
                 <Link href="/casos" className="inline-flex items-center gap-2 mb-4 text-xs font-bold text-pf-grey hover:text-pf-blue uppercase tracking-widest transition-colors">
                     <ArrowLeft className="h-3 w-3" />
                     Voltar para Casos
                 </Link>
                 <div className="text-center py-20 text-sm text-pf-grey">Caso nao encontrado.</div>
-            </div>
+            </PageShell>
         );
     }
 
     return (
-        <div className="space-y-6">
+        <PageShell>
             <div>
                 <Link href="/casos" className="inline-flex items-center gap-2 mb-4 text-xs font-bold text-pf-grey hover:text-pf-blue uppercase tracking-widest transition-colors">
                     <ArrowLeft className="h-3 w-3" />
@@ -386,9 +378,7 @@ export default function CaseDetailsPage({ params }: { params: { id: string } }) 
                     title={caseData.title}
                     subtitle={`Cliente: ${caseData.client} | Processo Interno: ${caseData.number}`}
                     actions={
-                        <span className={`inline-flex items-center rounded-sm px-3 py-1 font-sans text-xs font-bold uppercase tracking-widest ${STATUS_STYLES[caseData.status] ?? "bg-green-100 text-green-700"}`}>
-                            {caseData.status}
-                        </span>
+                        <StatusBadge status={caseData.status} />
                     }
                 />
             </div>
@@ -416,7 +406,7 @@ export default function CaseDetailsPage({ params }: { params: { id: string } }) 
                     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
                         {/* Cap Consumption Widget */}
                         {capStatus && !capStatus.isUncapped && (
-                            <div className="rounded-lg border border-pf-grey/10 bg-white p-5 shadow-sm">
+                            <div className="rounded-lg border border-pf-grey/10 bg-white p-5">
                                 <h3 className="text-[10px] font-bold uppercase tracking-[0.12em] text-pf-grey/50 mb-3">Cap de Horas — {capStatus.period}</h3>
                                 <div className="flex items-end gap-4 mb-3">
                                     <p className={`font-sans text-2xl font-bold ${capTextColor(capStatus.threshold)}`}>
@@ -447,21 +437,21 @@ export default function CaseDetailsPage({ params }: { params: { id: string } }) 
                             </div>
                         )}
                         {capStatus?.isUncapped && (
-                            <div className="rounded-lg border border-pf-grey/10 bg-white p-5 shadow-sm">
+                            <div className="rounded-lg border border-pf-grey/10 bg-white p-5">
                                 <h3 className="text-[10px] font-bold uppercase tracking-[0.12em] text-pf-grey/50 mb-2">Cap de Horas</h3>
                                 <p className="text-sm text-pf-grey/60">Sem cap definido para este caso.</p>
                             </div>
                         )}
 
                         {/* Summary KPIs */}
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                             {[
                                 { label: "A Fazer", count: todoTasks.length, color: "text-pf-grey" },
                                 { label: "Em Andamento", count: inProgressTasks.length, color: "text-pf-blue" },
                                 { label: "Concluido", count: doneTasks.length, color: "text-emerald-600" },
                                 { label: "Horas Apontadas", count: formatDuration(totalMinutes), color: "text-pf-blue" },
                             ].map((kpi) => (
-                                <div key={kpi.label} className="bg-white rounded-xl p-4 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+                                <div key={kpi.label} className="bg-white rounded-xl p-4 border border-pf-grey/10">
                                     <span className="text-[9px] font-bold uppercase tracking-[0.12em] text-pf-grey/50">{kpi.label}</span>
                                     <p className={`font-sans text-2xl font-bold ${kpi.color} mt-1`}>{kpi.count}</p>
                                 </div>
@@ -481,7 +471,7 @@ export default function CaseDetailsPage({ params }: { params: { id: string } }) 
 
                 {/* ══════════ KANBAN TAREFAS ══════════ */}
                 {activeTab === "tarefas" && (
-                    <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
                         {guardError && (
                             <div className="flex items-center gap-2 rounded-lg bg-red-50 border border-red-200 px-4 py-3">
                                 <AlertTriangle size={14} className="text-red-600 shrink-0" />
@@ -501,7 +491,7 @@ export default function CaseDetailsPage({ params }: { params: { id: string } }) 
                         </div>
 
                         {showNewTask && (
-                            <div className="flex items-end gap-3 rounded-lg border border-pf-blue/30 bg-white p-4 shadow-sm animate-in fade-in slide-in-from-top-2 duration-200">
+                            <div className="flex items-end gap-3 rounded-lg border border-pf-blue/30 bg-white p-4 animate-in fade-in slide-in-from-top-2 duration-200">
                                 <div className="flex-1 space-y-1.5">
                                     <label className="text-[10px] font-bold uppercase tracking-[0.1em] text-pf-grey">Titulo</label>
                                     <input
@@ -627,7 +617,7 @@ export default function CaseDetailsPage({ params }: { params: { id: string } }) 
                             </div>
                         )}
 
-                        <div className="rounded-lg border border-pf-grey/10 bg-white p-6 shadow-sm">
+                        <div className="rounded-lg border border-pf-grey/10 bg-white p-6">
                             <div className="flex items-center justify-between mb-4">
                                 <h3 className="font-sans text-lg font-bold tracking-tight text-pf-blue">Apontamento de Horas</h3>
                                 <button
@@ -672,7 +662,7 @@ export default function CaseDetailsPage({ params }: { params: { id: string } }) 
                 {/* ══════════ ARQUIVOS ══════════ */}
                 {activeTab === "arquivos" && (
                     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                        <div className="rounded-lg border border-pf-grey/10 bg-white p-6 shadow-sm">
+                        <div className="rounded-lg border border-pf-grey/10 bg-white p-6">
                             <div className="flex items-center justify-between mb-4">
                                 <h3 className="font-sans text-lg font-bold tracking-tight text-pf-blue">Google Drive</h3>
                                 {driveInfo.folderUrl && (
@@ -728,7 +718,7 @@ export default function CaseDetailsPage({ params }: { params: { id: string } }) 
                                                     <th className="px-4 py-2.5 text-right">Link</th>
                                                 </tr>
                                             </thead>
-                                            <tbody className="divide-y divide-pf-grey/5">
+                                            <tbody className="divide-y divide-pf-grey/10">
                                                 {driveFiles.map((file) => (
                                                     <tr key={file.id} className="hover:bg-white transition-colors">
                                                         <td className="px-4 py-2.5">
@@ -773,7 +763,7 @@ export default function CaseDetailsPage({ params }: { params: { id: string } }) 
                 {/* ══════════ REUNIOES ══════════ */}
                 {activeTab === "reunioes" && (
                     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                        <div className="rounded-lg border border-pf-grey/10 bg-white p-6 shadow-sm">
+                        <div className="rounded-lg border border-pf-grey/10 bg-white p-6">
                             <h3 className="font-sans text-lg font-bold tracking-tight text-pf-blue mb-4">Reunioes do Caso</h3>
 
                             {meetingsLoading ? (
@@ -786,7 +776,7 @@ export default function CaseDetailsPage({ params }: { params: { id: string } }) 
                                     Nenhuma reuniao registrada para este caso.
                                 </p>
                             ) : (
-                                <div className="space-y-0 divide-y divide-pf-grey/5">
+                                <div className="space-y-0 divide-y divide-pf-grey/10">
                                     {caseMeetings.map((mtg) => (
                                         <div key={mtg.id} className="py-3 px-2 hover:bg-background transition-colors rounded">
                                             <div className="flex items-center justify-between">
@@ -887,7 +877,7 @@ export default function CaseDetailsPage({ params }: { params: { id: string } }) 
                 {/* ══════════ EQUIPE ══════════ */}
                 {activeTab === "equipe" && (
                     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                        <div className="rounded-lg border border-pf-grey/10 bg-white p-6 shadow-sm">
+                        <div className="rounded-lg border border-pf-grey/10 bg-white p-6">
                             <h3 className="font-sans text-lg font-bold tracking-tight text-pf-blue mb-4">Equipe do Caso</h3>
 
                             {equipe.length === 0 ? (
@@ -895,7 +885,7 @@ export default function CaseDetailsPage({ params }: { params: { id: string } }) 
                                     Nenhum profissional com horas apontadas neste caso.
                                 </p>
                             ) : (
-                                <div className="space-y-0 divide-y divide-pf-grey/5">
+                                <div className="space-y-0 divide-y divide-pf-grey/10">
                                     {equipe.map((member) => {
                                         const initials = member.name
                                             .split(" ")
@@ -935,6 +925,6 @@ export default function CaseDetailsPage({ params }: { params: { id: string } }) 
                 )}
 
             </div>
-        </div>
+        </PageShell>
     );
 }
