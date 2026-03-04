@@ -289,7 +289,7 @@ const leadMetadataSchema = z.object({
 export type LeadMetadata = z.infer<typeof leadMetadataSchema>;
 
 /** Validate metadata before writing — strips unknown keys, returns clean object */
-export function validateLeadMetadata(raw: Record<string, unknown>): LeadMetadata {
+export async function validateLeadMetadata(raw: Record<string, unknown>): Promise<LeadMetadata> {
     const result = leadMetadataSchema.safeParse(raw);
     return result.success ? result.data : (raw as LeadMetadata);
 }
@@ -423,7 +423,7 @@ export async function createLeadFromBoard(
             status: parsed.data.stage,
             responsibleId,
             notes: parsed.data.notes,
-            metadata: validateLeadMetadata({
+            metadata: await validateLeadMetadata({
                 displayName: parsed.data.name,
                 boardStatus: parsed.data.status,
                 priority: parsed.data.priority ?? "",
@@ -511,7 +511,7 @@ export async function updateLeadFromBoard(
         if (patch.files !== undefined) newMeta.files = patch.files;
         if (patch.timeline !== undefined) newMeta.timeline = patch.timeline;
         if (patch.updatedBy !== undefined) newMeta.updatedBy = patch.updatedBy;
-        updates.metadata = validateLeadMetadata(newMeta);
+        updates.metadata = await validateLeadMetadata(newMeta);
 
         await db.update(leads).set(updates).where(eq(leads.id, parsedId.data));
 
