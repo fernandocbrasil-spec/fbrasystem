@@ -2,11 +2,16 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { PageHeader } from "@/components/ui/page-header";
+import { PageShell } from "@/components/ui/page-shell";
+import { KpiCard } from "@/components/ui/kpi-card";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { ErrorBanner } from "@/components/ui/error-banner";
+import { Modal } from "@/components/ui/modal";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ReportToolbar, getDensityClasses, type ColumnDef, type Density, type FilterDef } from "@/components/ui/report-toolbar";
 import { useToast } from "@/components/ui/toast";
 import { Button, SearchInput } from "@/components/ui";
-import { Receipt, Calendar, CheckSquare, Loader2, Send, X, Ban, FileText, ExternalLink } from "lucide-react";
+import { Receipt, Calendar, CheckSquare, Loader2, Send, X, Ban, FileText, ExternalLink, DollarSign, Hash } from "lucide-react";
 import { getInvoices, generatePreInvoice, submitPreInvoice, approvePreInvoice, rejectPreInvoice, cancelPreInvoice, emitNFSeFromApprovedPreInvoice } from "@/lib/actions";
 import { MOCK_CASE_OPTIONS, type MockInvoice } from "@/lib/mock-data";
 
@@ -18,15 +23,6 @@ const TABLE_COLUMNS: ColumnDef[] = [
     { key: "status", label: "Status", defaultVisible: true },
     { key: "acao", label: "Acao", defaultVisible: true },
 ];
-
-const statusStyle: Record<string, string> = {
-    "Rascunho": "bg-gray-100 text-gray-600",
-    "Pendente Aprovacao": "bg-orange-100 text-orange-700",
-    "Aprovado": "bg-green-100 text-green-700",
-    "Faturado": "bg-indigo-100 text-indigo-700",
-    "Rejeitado": "bg-red-100 text-red-700",
-    "Cancelado": "bg-gray-100 text-gray-400",
-};
 
 const FILTER_DEFS: FilterDef[] = [
     { key: "modalidade", label: "Modalidade", options: [
@@ -182,7 +178,7 @@ export default function BillingPage() {
     };
 
     return (
-        <div>
+        <PageShell>
             <div className="space-y-2 pb-3">
                 <PageHeader
                     title="Faturamento (Pre-Faturas)"
@@ -224,67 +220,68 @@ export default function BillingPage() {
                 </div>
 
                 {/* KPIs */}
-                <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
-                    <div className="bg-white border border-pf-grey/20 rounded border-l-[3px] border-l-pf-blue p-2.5">
-                        <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-pf-grey">Total a Faturar</p>
-                        <p className="font-sans text-xl font-bold text-pf-black mt-1 leading-none">{formatBRL(totalFaturar)}</p>
-                    </div>
-                    <div className="bg-white border border-pf-grey/20 rounded p-2.5">
-                        <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-pf-grey">Pre-Faturas Abertas</p>
-                        <p className="font-sans text-xl font-bold text-pf-blue mt-1 leading-none">{preFaturasAbertas}</p>
-                    </div>
-                    <div className="bg-white border border-pf-grey/20 rounded p-2.5">
-                        <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-pf-grey">Ticket Medio</p>
-                        <p className="font-sans text-xl font-bold text-pf-black mt-1 leading-none">{formatBRL(ticketMedio)}</p>
-                    </div>
-                    <div className="bg-white border border-pf-grey/20 rounded p-2.5">
-                        <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-pf-grey">Pre-Faturas Total</p>
-                        <p className="font-sans text-xl font-bold text-pf-black mt-1 leading-none">{invoices.length}</p>
-                    </div>
+                <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+                    <KpiCard
+                        label="Total a Faturar"
+                        value={formatBRL(totalFaturar)}
+                        icon={DollarSign}
+                        accentColor="border-l-pf-blue"
+                    />
+                    <KpiCard
+                        label="Pre-Faturas Abertas"
+                        value={String(preFaturasAbertas)}
+                        icon={FileText}
+                        iconColor="text-pf-blue"
+                    />
+                    <KpiCard
+                        label="Ticket Medio"
+                        value={formatBRL(ticketMedio)}
+                        icon={Receipt}
+                    />
+                    <KpiCard
+                        label="Pre-Faturas Total"
+                        value={String(invoices.length)}
+                        icon={Hash}
+                    />
                 </div>
             </div>
 
             {/* Reject Modal */}
-            {rejectModalId && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
-                    <div className="bg-white rounded-lg p-6 w-full max-w-md shadow-xl space-y-4">
-                        <div className="flex items-center justify-between">
-                            <h3 className="text-sm font-bold text-pf-black">Rejeitar Pre-Fatura</h3>
-                            <button onClick={() => { setRejectModalId(null); setRejectComment(""); }}><X size={16} className="text-pf-grey" /></button>
-                        </div>
-                        <div>
-                            <label className="block text-[10px] font-bold uppercase tracking-[0.15em] text-pf-grey mb-1">Motivo da Rejeicao</label>
-                            <textarea
-                                value={rejectComment}
-                                onChange={(e) => setRejectComment(e.target.value)}
-                                placeholder="Informe o motivo..."
-                                className="w-full border border-pf-grey/20 rounded p-3 text-sm outline-none focus:border-pf-blue h-24 resize-none"
-                            />
-                        </div>
-                        <div className="flex justify-end gap-2">
-                            <Button variant="secondary" size="sm" onClick={() => { setRejectModalId(null); setRejectComment(""); }}>Cancelar</Button>
-                            <button
-                                onClick={handleReject}
-                                disabled={!rejectComment.trim()}
-                                className="rounded bg-red-600 px-4 py-2 text-xs font-bold text-white hover:bg-red-700 transition-colors disabled:opacity-50"
-                            >
-                                Rejeitar
-                            </button>
-                        </div>
-                    </div>
+            <Modal
+                isOpen={!!rejectModalId}
+                onClose={() => { setRejectModalId(null); setRejectComment(""); }}
+                title="Rejeitar Pre-Fatura"
+                footer={
+                    <>
+                        <Button variant="secondary" size="sm" onClick={() => { setRejectModalId(null); setRejectComment(""); }}>Cancelar</Button>
+                        <button
+                            onClick={handleReject}
+                            disabled={!rejectComment.trim()}
+                            className="rounded bg-red-600 px-4 py-2 text-xs font-bold text-white hover:bg-red-700 transition-colors disabled:opacity-50"
+                        >
+                            Rejeitar
+                        </button>
+                    </>
+                }
+            >
+                <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-[0.15em] text-pf-grey mb-1">Motivo da Rejeicao</label>
+                    <textarea
+                        value={rejectComment}
+                        onChange={(e) => setRejectComment(e.target.value)}
+                        placeholder="Informe o motivo..."
+                        className="w-full border border-pf-grey/20 rounded p-3 text-sm outline-none focus:border-pf-blue h-24 resize-none"
+                    />
                 </div>
-            )}
+            </Modal>
 
             {/* NFSe Error Banner */}
             {nfseError && (
-                <div className="flex items-center justify-between rounded border border-red-200 bg-red-50 px-4 py-2.5 mb-2">
-                    <p className="text-xs font-semibold text-red-700">{nfseError}</p>
-                    <button onClick={() => setNfseError(null)}><X size={14} className="text-red-400" /></button>
-                </div>
+                <ErrorBanner message={nfseError} onDismiss={() => setNfseError(null)} />
             )}
 
             {/* Sticky: search + ReportToolbar */}
-            <div className="sticky top-0 z-20 bg-[#F4F5F7] py-2 space-y-2">
+            <div className="sticky top-0 z-20 bg-background py-2 space-y-2">
                 <div className="flex items-center justify-between">
                     <span className="text-sm font-bold text-pf-black">Pre-Faturas</span>
                     <SearchInput
@@ -333,7 +330,7 @@ export default function BillingPage() {
                             </tr>
                         ) : (
                             filtered.map((inv) => (
-                                <tr key={inv.id} className="border-b border-pf-grey/15 hover:bg-white transition-colors">
+                                <tr key={inv.id} className="border-b border-pf-grey/10 hover:bg-white transition-colors">
                                     {visibleColumns.includes("mes") && <td className={`${densityClasses.cell} text-pf-grey font-mono ${densityClasses.text}`}>{inv.month}</td>}
                                     {visibleColumns.includes("cliente") && <td className={`${densityClasses.cell}`}>
                                         <p className={`font-bold text-pf-black ${densityClasses.text}`}>{inv.client}</p>
@@ -342,7 +339,7 @@ export default function BillingPage() {
                                     {visibleColumns.includes("modalidade") && <td className={`${densityClasses.cell} text-pf-grey ${densityClasses.text} uppercase font-bold`}>{inv.type}</td>}
                                     {visibleColumns.includes("valor") && <td className={`${densityClasses.cell} ${densityClasses.text} text-right font-bold text-pf-black font-mono`}>{inv.value}</td>}
                                     {visibleColumns.includes("status") && <td className={`${densityClasses.cell}`}>
-                                        <span className={`inline-flex items-center rounded-sm px-2 py-1 text-[10px] font-bold uppercase tracking-widest ${statusStyle[inv.status] ?? "bg-gray-100 text-gray-600"}`}>{inv.status}</span>
+                                        <StatusBadge status={inv.status} />
                                     </td>}
                                     {visibleColumns.includes("acao") && <td className={`${densityClasses.cell} text-right`}>
                                         <div className="flex items-center justify-end gap-1">
@@ -429,6 +426,6 @@ export default function BillingPage() {
                     </tbody>
                 </table>
             </div>
-        </div>
+        </PageShell>
     );
 }

@@ -173,7 +173,7 @@ function ToolbarDropdown({
     return (
         <div
             onMouseDown={(e) => e.stopPropagation()}
-            className="absolute top-full left-0 z-50 mt-1 rounded-lg border border-gray-200 bg-white py-2 shadow-xl"
+            className="absolute top-full left-0 z-50 mt-1 rounded-lg border border-pf-grey/20 bg-white py-2 shadow-xl"
             style={{ width }}
         >
             {children}
@@ -216,14 +216,14 @@ function CellDropdown({
     return (
         <div
             ref={ref}
-            className="fixed z-[9999] min-w-[160px] rounded-md border border-gray-200 bg-white py-1.5 shadow-lg"
+            className="fixed z-[9999] min-w-[160px] rounded-md border border-pf-grey/20 bg-white py-1.5 shadow-lg"
             style={{ top: anchorRect.bottom + 4, left: anchorRect.left }}
         >
             {options.map((opt) => (
                 <button
                     key={opt.value}
                     onClick={() => { onSelect(opt.value); onClose(); }}
-                    className="flex w-full items-center gap-2 px-2 py-1 text-sm hover:bg-gray-50 transition-colors"
+                    className="flex w-full items-center gap-2 px-2 py-1 text-sm hover:bg-white transition-colors"
                 >
                     <span
                         className="flex h-7 min-w-[120px] items-center justify-center rounded-[3px] text-xs font-medium"
@@ -234,8 +234,8 @@ function CellDropdown({
                     </span>
                 </button>
             ))}
-            <div className="border-t border-gray-100 mt-1 pt-1 px-2">
-                <button className="flex w-full items-center gap-2 py-1.5 text-xs text-gray-500 hover:text-gray-800">
+            <div className="border-t border-pf-grey/10 mt-1 pt-1 px-2">
+                <button className="flex w-full items-center gap-2 py-1.5 text-xs text-pf-grey hover:text-pf-black">
                     <span className="text-[11px]">✎</span> Editar etiquetas
                 </button>
             </div>
@@ -337,18 +337,18 @@ function UpdatedCell({ updatedAt, updatedBy }: { updatedAt: string; updatedBy: s
 
     return (
         <div
-            className="relative flex items-center gap-2 text-[13px] text-gray-500"
+            className="relative flex items-center gap-2 text-[13px] text-pf-grey"
             onMouseEnter={() => setHover(true)}
             onMouseLeave={() => setHover(false)}
         >
-            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-gray-300 text-[10px] font-bold text-white">
+            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-pf-grey text-[10px] font-bold text-white">
                 {updatedBy.charAt(0)}
             </span>
             <span className="whitespace-nowrap">{relativeTime(updatedAt)}</span>
             {hover && (
-                <div className="absolute bottom-full left-1/2 z-50 mb-2 -translate-x-1/2 whitespace-nowrap rounded-md bg-gray-900 px-3 py-2 text-xs text-white shadow-lg">
+                <div className="absolute bottom-full left-1/2 z-50 mb-2 -translate-x-1/2 whitespace-nowrap rounded-md bg-pf-black px-3 py-2 text-xs text-white shadow-lg">
                     <p className="font-medium">Atualizado por {updatedBy}</p>
-                    <p className="text-gray-400">
+                    <p className="text-pf-grey/50">
                         em {new Date(updatedAt).toLocaleDateString("pt-BR")} as{" "}
                         {new Date(updatedAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
                     </p>
@@ -758,13 +758,13 @@ export default function LeadsMondayBoard() {
         addCol: "w-[36px] min-w-[36px]",
     };
 
-    const hCell = "px-2 py-2 text-[13px] font-medium text-gray-500 border-b border-gray-200 select-none whitespace-nowrap";
+    const hCell = "px-2 py-2 text-[13px] font-medium text-pf-grey border-b border-pf-grey/10 select-none whitespace-nowrap";
 
     return (
         <div className="h-full flex flex-col font-sans text-[14px]">
             {/* ─── Board Header ──────────────────────────────────────── */}
             <div className="flex items-center justify-between px-1 pb-4">
-                <h1 className="text-2xl font-bold text-gray-900">Leads</h1>
+                <h1 className="text-xl font-bold tracking-tight text-pf-black">Leads</h1>
             </div>
 
             {/* ─── Toolbar ───────────────────────────────────────────── */}
@@ -773,19 +773,19 @@ export default function LeadsMondayBoard() {
                 <div className="relative">
                     <button
                         onClick={() => { closeAllDropdowns(); setShowNewForm(!showNewForm); }}
-                        className="inline-flex items-center gap-1.5 rounded-md bg-[#0073EA] px-3 py-1.5 text-sm font-medium text-white hover:bg-[#0060B9] transition-colors"
+                        className="inline-flex items-center gap-1.5 rounded-md bg-pf-blue px-3 py-1.5 text-sm font-medium text-white hover:bg-pf-blue/90 transition-colors"
                     >
                         Novo Lead
                         <ChevronDown className="h-3.5 w-3.5" />
                     </button>
                 </div>
 
-                <div className="h-5 w-px bg-gray-200 mx-1" />
+                <div className="h-5 w-px bg-pf-grey/20 mx-1" />
 
                 {/* 2. Pesquisar */}
                 <button
                     onClick={() => { closeAllDropdowns(); setSearchOpen(!searchOpen); }}
-                    className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm transition-colors ${searchOpen ? "bg-blue-50 text-[#0073EA]" : "text-gray-600 hover:bg-gray-100"}`}
+                    className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm transition-colors ${searchOpen ? "bg-blue-50 text-pf-blue" : "text-pf-grey hover:bg-background"}`}
                 >
                     <Search className="h-4 w-4" />
                     Pesquisar
@@ -798,11 +798,11 @@ export default function LeadsMondayBoard() {
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
                             placeholder="Buscar..."
-                            className="h-8 w-48 rounded-md border border-gray-300 px-3 pr-7 text-sm outline-none focus:border-[#0073EA] focus:ring-1 focus:ring-[#0073EA] transition-all"
+                            className="h-8 w-48 rounded-md border border-pf-grey/20 px-3 pr-7 text-sm outline-none focus:border-pf-blue focus:ring-1 focus:ring-pf-blue transition-all"
                             autoFocus
                         />
                         {search && (
-                            <button onClick={() => setSearch("")} className="absolute right-2 text-gray-400 hover:text-gray-600">
+                            <button onClick={() => setSearch("")} className="absolute right-2 text-pf-grey/50 hover:text-pf-grey">
                                 <X className="h-3.5 w-3.5" />
                             </button>
                         )}
@@ -813,23 +813,23 @@ export default function LeadsMondayBoard() {
                 <div className="relative">
                     <button
                         onClick={() => { closeAllDropdowns(); setPersonOpen(!personOpen); }}
-                        className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm transition-colors ${personFilter.length > 0 ? "bg-blue-50 text-[#0073EA]" : "text-gray-600 hover:bg-gray-100"}`}
+                        className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm transition-colors ${personFilter.length > 0 ? "bg-blue-50 text-pf-blue" : "text-pf-grey hover:bg-background"}`}
                     >
                         <Users className="h-4 w-4" />
                         Pessoa
                         {personFilter.length > 0 && (
-                            <span className="ml-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-[#0073EA] text-[10px] text-white">{personFilter.length}</span>
+                            <span className="ml-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-pf-blue text-[10px] text-white">{personFilter.length}</span>
                         )}
                     </button>
                     <ToolbarDropdown open={personOpen}>
-                        <div className="px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-gray-400">Responsavel</div>
+                        <div className="px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-pf-grey/50">Responsavel</div>
                         {RESPONSIBLE_LIST.map((name) => (
                             <button
                                 key={name}
                                 onClick={() => togglePersonFilter(name)}
-                                className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                                className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-pf-black hover:bg-white transition-colors"
                             >
-                                <span className={`flex h-4 w-4 items-center justify-center rounded border ${personFilter.includes(name) ? "border-[#0073EA] bg-[#0073EA]" : "border-gray-300"}`}>
+                                <span className={`flex h-4 w-4 items-center justify-center rounded border ${personFilter.includes(name) ? "border-pf-blue bg-pf-blue" : "border-pf-grey/20"}`}>
                                     {personFilter.includes(name) && <Check className="h-3 w-3 text-white" />}
                                 </span>
                                 <Avatar name={name} />
@@ -837,8 +837,8 @@ export default function LeadsMondayBoard() {
                             </button>
                         ))}
                         {personFilter.length > 0 && (
-                            <div className="border-t border-gray-100 mt-1 pt-1 px-3">
-                                <button onClick={() => setPersonFilter([])} className="w-full py-1.5 text-xs text-[#0073EA] hover:underline text-left">
+                            <div className="border-t border-pf-grey/10 mt-1 pt-1 px-3">
+                                <button onClick={() => setPersonFilter([])} className="w-full py-1.5 text-xs text-pf-blue hover:underline text-left">
                                     Limpar filtros
                                 </button>
                             </div>
@@ -850,38 +850,38 @@ export default function LeadsMondayBoard() {
                 <div className="relative">
                     <button
                         onClick={() => { closeAllDropdowns(); setFilterOpen(!filterOpen); }}
-                        className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm transition-colors ${activeFilterCount > 0 ? "bg-blue-50 text-[#0073EA]" : "text-gray-600 hover:bg-gray-100"}`}
+                        className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm transition-colors ${activeFilterCount > 0 ? "bg-blue-50 text-pf-blue" : "text-pf-grey hover:bg-background"}`}
                     >
                         <SlidersHorizontal className="h-4 w-4" />
                         Filtro
                         {activeFilterCount > 0 && (
-                            <span className="ml-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-[#0073EA] text-[10px] text-white">{activeFilterCount}</span>
+                            <span className="ml-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-pf-blue text-[10px] text-white">{activeFilterCount}</span>
                         )}
                     </button>
                     <ToolbarDropdown open={filterOpen} width={260}>
-                        <div className="px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-gray-400">Status</div>
+                        <div className="px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-pf-grey/50">Status</div>
                         {STATUS_OPTIONS.map((s) => (
                             <button
                                 key={s.value}
                                 onClick={() => toggleStatusFilter(s.value)}
-                                className="flex w-full items-center gap-2.5 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
+                                className="flex w-full items-center gap-2.5 px-3 py-1.5 text-sm text-pf-black hover:bg-white"
                             >
-                                <span className={`flex h-4 w-4 items-center justify-center rounded border ${statusFilter.includes(s.value) ? "border-[#0073EA] bg-[#0073EA]" : "border-gray-300"}`}>
+                                <span className={`flex h-4 w-4 items-center justify-center rounded border ${statusFilter.includes(s.value) ? "border-pf-blue bg-pf-blue" : "border-pf-grey/20"}`}>
                                     {statusFilter.includes(s.value) && <Check className="h-3 w-3 text-white" />}
                                 </span>
                                 <span className="flex h-5 w-5 rounded-[3px]" style={{ backgroundColor: s.color }} />
                                 <span>{s.label}</span>
                             </button>
                         ))}
-                        <div className="mx-3 my-1.5 border-t border-gray-100" />
-                        <div className="px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-gray-400">Prioridade</div>
+                        <div className="mx-3 my-1.5 border-t border-pf-grey/10" />
+                        <div className="px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-pf-grey/50">Prioridade</div>
                         {PRIORITY_OPTIONS.filter((p) => p.value !== "").map((p) => (
                             <button
                                 key={p.value}
                                 onClick={() => togglePriorityFilter(p.value)}
-                                className="flex w-full items-center gap-2.5 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
+                                className="flex w-full items-center gap-2.5 px-3 py-1.5 text-sm text-pf-black hover:bg-white"
                             >
-                                <span className={`flex h-4 w-4 items-center justify-center rounded border ${priorityFilter.includes(p.value) ? "border-[#0073EA] bg-[#0073EA]" : "border-gray-300"}`}>
+                                <span className={`flex h-4 w-4 items-center justify-center rounded border ${priorityFilter.includes(p.value) ? "border-pf-blue bg-pf-blue" : "border-pf-grey/20"}`}>
                                     {priorityFilter.includes(p.value) && <Check className="h-3 w-3 text-white" />}
                                 </span>
                                 <span className="flex h-5 w-5 rounded-[3px]" style={{ backgroundColor: p.color }} />
@@ -889,8 +889,8 @@ export default function LeadsMondayBoard() {
                             </button>
                         ))}
                         {(statusFilter.length > 0 || priorityFilter.length > 0) && (
-                            <div className="border-t border-gray-100 mt-1 pt-1 px-3">
-                                <button onClick={() => { setStatusFilter([]); setPriorityFilter([]); }} className="w-full py-1.5 text-xs text-[#0073EA] hover:underline text-left">
+                            <div className="border-t border-pf-grey/10 mt-1 pt-1 px-3">
+                                <button onClick={() => { setStatusFilter([]); setPriorityFilter([]); }} className="w-full py-1.5 text-xs text-pf-blue hover:underline text-left">
                                     Limpar todos os filtros
                                 </button>
                             </div>
@@ -902,13 +902,13 @@ export default function LeadsMondayBoard() {
                 <div className="relative">
                     <button
                         onClick={() => { closeAllDropdowns(); setSortOpen(!sortOpen); }}
-                        className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm transition-colors ${sortKey ? "bg-blue-50 text-[#0073EA]" : "text-gray-600 hover:bg-gray-100"}`}
+                        className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm transition-colors ${sortKey ? "bg-blue-50 text-pf-blue" : "text-pf-grey hover:bg-background"}`}
                     >
                         <ArrowUpDown className="h-4 w-4" />
                         Ordenar
                     </button>
                     <ToolbarDropdown open={sortOpen} width={200}>
-                        <div className="px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-gray-400">Ordenar por</div>
+                        <div className="px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-pf-grey/50">Ordenar por</div>
                         {SORT_OPTIONS.map((opt) => (
                             <button
                                 key={opt.key}
@@ -921,7 +921,7 @@ export default function LeadsMondayBoard() {
                                         setSortDir("asc");
                                     }
                                 }}
-                                className={`flex w-full items-center justify-between px-3 py-2 text-sm transition-colors ${sortKey === opt.key ? "bg-blue-50 text-[#0073EA]" : "text-gray-700 hover:bg-gray-50"}`}
+                                className={`flex w-full items-center justify-between px-3 py-2 text-sm transition-colors ${sortKey === opt.key ? "bg-blue-50 text-pf-blue" : "text-pf-black hover:bg-white"}`}
                             >
                                 <span>{opt.label}</span>
                                 {sortKey === opt.key && (
@@ -932,8 +932,8 @@ export default function LeadsMondayBoard() {
                             </button>
                         ))}
                         {sortKey && (
-                            <div className="border-t border-gray-100 mt-1 pt-1 px-3">
-                                <button onClick={() => { setSortKey(null); setSortDir("asc"); }} className="w-full py-1.5 text-xs text-[#0073EA] hover:underline text-left">
+                            <div className="border-t border-pf-grey/10 mt-1 pt-1 px-3">
+                                <button onClick={() => { setSortKey(null); setSortDir("asc"); }} className="w-full py-1.5 text-xs text-pf-blue hover:underline text-left">
                                     Remover ordenacao
                                 </button>
                             </div>
@@ -945,31 +945,31 @@ export default function LeadsMondayBoard() {
                 <div className="relative">
                     <button
                         onClick={() => { closeAllDropdowns(); setHideOpen(!hideOpen); }}
-                        className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm transition-colors ${hiddenColumns.size > 0 ? "bg-blue-50 text-[#0073EA]" : "text-gray-600 hover:bg-gray-100"}`}
+                        className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm transition-colors ${hiddenColumns.size > 0 ? "bg-blue-50 text-pf-blue" : "text-pf-grey hover:bg-background"}`}
                     >
                         <EyeOff className="h-4 w-4" />
                         Ocultar
                         {hiddenColumns.size > 0 && (
-                            <span className="ml-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-[#0073EA] text-[10px] text-white">{hiddenColumns.size}</span>
+                            <span className="ml-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-pf-blue text-[10px] text-white">{hiddenColumns.size}</span>
                         )}
                     </button>
                     <ToolbarDropdown open={hideOpen} width={220}>
-                        <div className="px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-gray-400">Colunas visiveis</div>
+                        <div className="px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-pf-grey/50">Colunas visiveis</div>
                         {ALL_COLUMNS.map((col) => (
                             <button
                                 key={col.key}
                                 onClick={() => toggleColumn(col.key)}
-                                className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                                className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-pf-black hover:bg-white"
                             >
-                                <span className={`flex h-4 w-4 items-center justify-center rounded border ${isColumnVisible(col.key) ? "border-[#0073EA] bg-[#0073EA]" : "border-gray-300"}`}>
+                                <span className={`flex h-4 w-4 items-center justify-center rounded border ${isColumnVisible(col.key) ? "border-pf-blue bg-pf-blue" : "border-pf-grey/20"}`}>
                                     {isColumnVisible(col.key) && <Check className="h-3 w-3 text-white" />}
                                 </span>
                                 <span>{col.label}</span>
                             </button>
                         ))}
                         {hiddenColumns.size > 0 && (
-                            <div className="border-t border-gray-100 mt-1 pt-1 px-3">
-                                <button onClick={() => setHiddenColumns(new Set())} className="w-full py-1.5 text-xs text-[#0073EA] hover:underline text-left">
+                            <div className="border-t border-pf-grey/10 mt-1 pt-1 px-3">
+                                <button onClick={() => setHiddenColumns(new Set())} className="w-full py-1.5 text-xs text-pf-blue hover:underline text-left">
                                     Mostrar todas
                                 </button>
                             </div>
@@ -981,18 +981,18 @@ export default function LeadsMondayBoard() {
                 <div className="relative">
                     <button
                         onClick={() => { closeAllDropdowns(); setGroupByOpen(!groupByOpen); }}
-                        className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm transition-colors ${groupBy !== "stage" ? "bg-blue-50 text-[#0073EA]" : "text-gray-600 hover:bg-gray-100"}`}
+                        className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm transition-colors ${groupBy !== "stage" ? "bg-blue-50 text-pf-blue" : "text-pf-grey hover:bg-background"}`}
                     >
                         <LayoutGrid className="h-4 w-4" />
                         Agrupar por
                     </button>
                     <ToolbarDropdown open={groupByOpen} width={200}>
-                        <div className="px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-gray-400">Agrupar por</div>
+                        <div className="px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-pf-grey/50">Agrupar por</div>
                         {GROUP_BY_OPTIONS.map((opt) => (
                             <button
                                 key={opt.key}
                                 onClick={() => { setGroupBy(opt.key); setGroupByOpen(false); setCollapsedGroups(new Set()); }}
-                                className={`flex w-full items-center justify-between px-3 py-2 text-sm transition-colors ${groupBy === opt.key ? "bg-blue-50 text-[#0073EA] font-medium" : "text-gray-700 hover:bg-gray-50"}`}
+                                className={`flex w-full items-center justify-between px-3 py-2 text-sm transition-colors ${groupBy === opt.key ? "bg-blue-50 text-pf-blue font-medium" : "text-pf-black hover:bg-white"}`}
                             >
                                 <span>{opt.label}</span>
                                 {groupBy === opt.key && <Check className="h-3.5 w-3.5" />}
@@ -1005,31 +1005,31 @@ export default function LeadsMondayBoard() {
                 <div className="relative">
                     <button
                         onClick={() => { closeAllDropdowns(); setMoreOpen(!moreOpen); }}
-                        className="inline-flex items-center rounded-md px-2 py-1.5 text-sm text-gray-400 hover:bg-gray-100 transition-colors"
+                        className="inline-flex items-center rounded-md px-2 py-1.5 text-sm text-pf-grey/50 hover:bg-background transition-colors"
                     >
                         <MoreHorizontal className="h-4 w-4" />
                     </button>
                     <ToolbarDropdown open={moreOpen} width={200}>
                         <button
                             onClick={() => { expandAll(); setMoreOpen(false); }}
-                            className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                            className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-pf-black hover:bg-white"
                         >
-                            <Maximize2 className="h-3.5 w-3.5 text-gray-400" />
+                            <Maximize2 className="h-3.5 w-3.5 text-pf-grey/50" />
                             Expandir todos
                         </button>
                         <button
                             onClick={() => { collapseAll(); setMoreOpen(false); }}
-                            className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                            className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-pf-black hover:bg-white"
                         >
-                            <Minimize2 className="h-3.5 w-3.5 text-gray-400" />
+                            <Minimize2 className="h-3.5 w-3.5 text-pf-grey/50" />
                             Colapsar todos
                         </button>
-                        <div className="mx-3 my-1 border-t border-gray-100" />
+                        <div className="mx-3 my-1 border-t border-pf-grey/10" />
                         <button
                             onClick={() => { exportCsv(); setMoreOpen(false); }}
-                            className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                            className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-pf-black hover:bg-white"
                         >
-                            <Download className="h-3.5 w-3.5 text-gray-400" />
+                            <Download className="h-3.5 w-3.5 text-pf-grey/50" />
                             Exportar dados
                         </button>
                     </ToolbarDropdown>
@@ -1040,30 +1040,30 @@ export default function LeadsMondayBoard() {
             {showNewForm && (
                 <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50/50 p-4">
                     <div className="flex items-center justify-between mb-3">
-                        <span className="text-sm font-bold text-gray-900">Novo Lead</span>
-                        <button onClick={() => setShowNewForm(false)} className="text-gray-400 hover:text-gray-600">
+                        <span className="text-sm font-bold text-pf-black">Novo Lead</span>
+                        <button onClick={() => setShowNewForm(false)} className="text-pf-grey/50 hover:text-pf-grey">
                             <X className="h-4 w-4" />
                         </button>
                     </div>
                     <form onSubmit={(e) => { e.preventDefault(); addNewLead(); }}>
                         <div className="grid grid-cols-4 gap-3 mb-3">
                             <div className="col-span-4">
-                                <label className="block text-xs font-medium text-gray-500 mb-1">Nome do lead *</label>
+                                <label className="block text-xs font-medium text-pf-grey mb-1">Nome do lead *</label>
                                 <input
                                     ref={newNameRef}
                                     type="text"
                                     value={newName}
                                     onChange={(e) => setNewName(e.target.value)}
                                     placeholder="Ex: Empresa XYZ — Assessoria Tributaria"
-                                    className="w-full h-9 rounded-md border border-gray-300 px-3 text-sm outline-none focus:border-[#0073EA] focus:ring-1 focus:ring-[#0073EA]"
+                                    className="w-full h-9 rounded-md border border-pf-grey/20 px-3 text-sm outline-none focus:border-pf-blue focus:ring-1 focus:ring-pf-blue"
                                 />
                             </div>
                             <div>
-                                <label className="block text-xs font-medium text-gray-500 mb-1">Responsavel</label>
+                                <label className="block text-xs font-medium text-pf-grey mb-1">Responsavel</label>
                                 <select
                                     value={newResponsible}
                                     onChange={(e) => setNewResponsible(e.target.value)}
-                                    className="w-full h-9 rounded-md border border-gray-300 px-2 text-sm outline-none focus:border-[#0073EA] focus:ring-1 focus:ring-[#0073EA] bg-white"
+                                    className="w-full h-9 rounded-md border border-pf-grey/20 px-2 text-sm outline-none focus:border-pf-blue focus:ring-1 focus:ring-pf-blue bg-white"
                                 >
                                     <option value="">Selecionar...</option>
                                     {RESPONSIBLE_LIST.map((name) => (
@@ -1072,11 +1072,11 @@ export default function LeadsMondayBoard() {
                                 </select>
                             </div>
                             <div>
-                                <label className="block text-xs font-medium text-gray-500 mb-1">Estagio</label>
+                                <label className="block text-xs font-medium text-pf-grey mb-1">Estagio</label>
                                 <select
                                     value={newStage}
                                     onChange={(e) => setNewStage(e.target.value as LeadStage)}
-                                    className="w-full h-9 rounded-md border border-gray-300 px-2 text-sm outline-none focus:border-[#0073EA] focus:ring-1 focus:ring-[#0073EA] bg-white"
+                                    className="w-full h-9 rounded-md border border-pf-grey/20 px-2 text-sm outline-none focus:border-pf-blue focus:ring-1 focus:ring-pf-blue bg-white"
                                 >
                                     {STAGE_GROUPS.map((sg) => (
                                         <option key={sg.stage} value={sg.stage}>{sg.label}</option>
@@ -1084,11 +1084,11 @@ export default function LeadsMondayBoard() {
                                 </select>
                             </div>
                             <div>
-                                <label className="block text-xs font-medium text-gray-500 mb-1">Status</label>
+                                <label className="block text-xs font-medium text-pf-grey mb-1">Status</label>
                                 <select
                                     value={newFormStatus}
                                     onChange={(e) => setNewFormStatus(e.target.value as LeadStatus)}
-                                    className="w-full h-9 rounded-md border border-gray-300 px-2 text-sm outline-none focus:border-[#0073EA] focus:ring-1 focus:ring-[#0073EA] bg-white"
+                                    className="w-full h-9 rounded-md border border-pf-grey/20 px-2 text-sm outline-none focus:border-pf-blue focus:ring-1 focus:ring-pf-blue bg-white"
                                 >
                                     {STATUS_OPTIONS.map((s) => (
                                         <option key={s.value} value={s.value}>{s.label}</option>
@@ -1096,11 +1096,11 @@ export default function LeadsMondayBoard() {
                                 </select>
                             </div>
                             <div>
-                                <label className="block text-xs font-medium text-gray-500 mb-1">Prioridade</label>
+                                <label className="block text-xs font-medium text-pf-grey mb-1">Prioridade</label>
                                 <select
                                     value={newPriority}
                                     onChange={(e) => setNewPriority(e.target.value as LeadPriority)}
-                                    className="w-full h-9 rounded-md border border-gray-300 px-2 text-sm outline-none focus:border-[#0073EA] focus:ring-1 focus:ring-[#0073EA] bg-white"
+                                    className="w-full h-9 rounded-md border border-pf-grey/20 px-2 text-sm outline-none focus:border-pf-blue focus:ring-1 focus:ring-pf-blue bg-white"
                                 >
                                     {PRIORITY_OPTIONS.map((p) => (
                                         <option key={p.value} value={p.value}>{p.label}</option>
@@ -1108,32 +1108,32 @@ export default function LeadsMondayBoard() {
                                 </select>
                             </div>
                             <div>
-                                <label className="block text-xs font-medium text-gray-500 mb-1">Prazo</label>
+                                <label className="block text-xs font-medium text-pf-grey mb-1">Prazo</label>
                                 <input
                                     type="date"
                                     value={newDeadline}
                                     onChange={(e) => setNewDeadline(e.target.value)}
-                                    className="w-full h-9 rounded-md border border-gray-300 px-2 text-sm outline-none focus:border-[#0073EA] focus:ring-1 focus:ring-[#0073EA]"
+                                    className="w-full h-9 rounded-md border border-pf-grey/20 px-2 text-sm outline-none focus:border-pf-blue focus:ring-1 focus:ring-pf-blue"
                                 />
                             </div>
                             <div>
-                                <label className="block text-xs font-medium text-gray-500 mb-1">Valor</label>
+                                <label className="block text-xs font-medium text-pf-grey mb-1">Valor</label>
                                 <input
                                     type="text"
                                     value={newValue}
                                     onChange={(e) => setNewValue(e.target.value)}
                                     placeholder="R$ 0"
-                                    className="w-full h-9 rounded-md border border-gray-300 px-3 text-sm outline-none focus:border-[#0073EA] focus:ring-1 focus:ring-[#0073EA]"
+                                    className="w-full h-9 rounded-md border border-pf-grey/20 px-3 text-sm outline-none focus:border-pf-blue focus:ring-1 focus:ring-pf-blue"
                                 />
                             </div>
                             <div className="col-span-2">
-                                <label className="block text-xs font-medium text-gray-500 mb-1">Notas</label>
+                                <label className="block text-xs font-medium text-pf-grey mb-1">Notas</label>
                                 <input
                                     type="text"
                                     value={newNotes}
                                     onChange={(e) => setNewNotes(e.target.value)}
                                     placeholder="Observacoes..."
-                                    className="w-full h-9 rounded-md border border-gray-300 px-3 text-sm outline-none focus:border-[#0073EA] focus:ring-1 focus:ring-[#0073EA]"
+                                    className="w-full h-9 rounded-md border border-pf-grey/20 px-3 text-sm outline-none focus:border-pf-blue focus:ring-1 focus:ring-pf-blue"
                                 />
                             </div>
                         </div>
@@ -1141,7 +1141,7 @@ export default function LeadsMondayBoard() {
                             <button
                                 type="submit"
                                 disabled={!newName.trim()}
-                                className="inline-flex items-center gap-1.5 rounded-md bg-[#0073EA] px-4 py-2 text-sm font-medium text-white hover:bg-[#0060B9] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                                className="inline-flex items-center gap-1.5 rounded-md bg-pf-blue px-4 py-2 text-sm font-medium text-white hover:bg-pf-blue/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                             >
                                 <Plus className="h-3.5 w-3.5" />
                                 Adicionar
@@ -1154,7 +1154,7 @@ export default function LeadsMondayBoard() {
             {/* ─── Active filters bar ─────────────────────────────────── */}
             {(personFilter.length > 0 || statusFilter.length > 0 || priorityFilter.length > 0 || sortKey || search) && (
                 <div className="flex items-center gap-2 pb-3 flex-wrap">
-                    <span className="text-xs text-gray-400">Filtros ativos:</span>
+                    <span className="text-xs text-pf-grey/50">Filtros ativos:</span>
                     {personFilter.map((name) => (
                         <span key={name} className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2.5 py-0.5 text-xs text-blue-700">
                             {name}
@@ -1174,20 +1174,20 @@ export default function LeadsMondayBoard() {
                         </span>
                     ))}
                     {sortKey && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-0.5 text-xs text-gray-600">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-pf-grey/10 px-2.5 py-0.5 text-xs text-pf-grey">
                             Ordenado: {SORT_OPTIONS.find((o) => o.key === sortKey)?.label} ({sortDir === "asc" ? "A-Z" : "Z-A"})
                             <button onClick={() => { setSortKey(null); setSortDir("asc"); }}><X className="h-3 w-3" /></button>
                         </span>
                     )}
                     {search && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-0.5 text-xs text-gray-600">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-pf-grey/10 px-2.5 py-0.5 text-xs text-pf-grey">
                             Busca: &quot;{search}&quot;
                             <button onClick={() => setSearch("")}><X className="h-3 w-3" /></button>
                         </span>
                     )}
                     <button
                         onClick={() => { setPersonFilter([]); setStatusFilter([]); setPriorityFilter([]); setSortKey(null); setSortDir("asc"); setSearch(""); }}
-                        className="text-xs text-[#0073EA] hover:underline ml-1"
+                        className="text-xs text-pf-blue hover:underline ml-1"
                     >
                         Limpar tudo
                     </button>
@@ -1198,8 +1198,8 @@ export default function LeadsMondayBoard() {
             <div className="flex-1 overflow-auto">
                 {loading && (
                     <div className="flex items-center justify-center py-20">
-                        <div className="h-5 w-5 animate-spin rounded-full border-2 border-gray-300 border-t-[#0073EA]" />
-                        <span className="ml-3 text-sm text-gray-500">Carregando leads...</span>
+                        <div className="h-5 w-5 animate-spin rounded-full border-2 border-pf-grey/20 border-t-[#0073EA]" />
+                        <span className="ml-3 text-sm text-pf-grey">Carregando leads...</span>
                     </div>
                 )}
                 {!loading && groups.map((group) => {
@@ -1218,7 +1218,7 @@ export default function LeadsMondayBoard() {
                                 <span className="text-[18px] font-bold" style={{ color: group.color }}>
                                     {group.label}
                                 </span>
-                                <span className="text-xs text-gray-400 ml-1">
+                                <span className="text-xs text-pf-grey/50 ml-1">
                                     {group.items.length} {group.items.length === 1 ? "lead" : "leads"}
                                 </span>
                             </button>
@@ -1246,7 +1246,7 @@ export default function LeadsMondayBoard() {
                                                 {isColumnVisible("files") && <th className={`${hCell} ${COL.files} text-center`}>Arquivos</th>}
                                                 {isColumnVisible("timeline") && <th className={`${hCell} ${COL.timeline} text-center`}>Cronograma</th>}
                                                 {isColumnVisible("updated") && <th className={`${hCell} ${COL.updated} text-left`}>Ultima atualizacao</th>}
-                                                <th className={`${hCell} ${COL.addCol} text-center`}><Plus className="h-3.5 w-3.5 text-gray-400" /></th>
+                                                <th className={`${hCell} ${COL.addCol} text-center`}><Plus className="h-3.5 w-3.5 text-pf-grey/50" /></th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -1264,17 +1264,17 @@ export default function LeadsMondayBoard() {
                                                     {isColumnVisible("name") && (
                                                         <td className="px-2 py-1">
                                                             <div className="flex items-center gap-2">
-                                                                <span className="text-[14px] text-gray-900 font-medium truncate">{item.name}</span>
+                                                                <span className="text-[14px] text-pf-black font-medium truncate">{item.name}</span>
                                                                 <div className="flex items-center gap-0.5 shrink-0">
                                                                     <button
                                                                         onClick={() => toggleStar(item.id)}
-                                                                        className={`p-0.5 transition-colors ${starredLeads.has(item.id) ? "text-yellow-500" : "opacity-0 group-hover/row:opacity-100 text-gray-400 hover:text-gray-600"}`}
+                                                                        className={`p-0.5 transition-colors ${starredLeads.has(item.id) ? "text-yellow-500" : "opacity-0 group-hover/row:opacity-100 text-pf-grey/50 hover:text-pf-grey"}`}
                                                                     >
                                                                         <Star className={`h-3.5 w-3.5 ${starredLeads.has(item.id) ? "fill-yellow-500" : ""}`} />
                                                                     </button>
                                                                     <button
                                                                         onClick={() => setEditingNotesId(editingNotesId === item.id ? null : item.id)}
-                                                                        className={`p-0.5 transition-colors ${item.notes ? "text-blue-400 hover:text-blue-600" : "opacity-0 group-hover/row:opacity-100 text-gray-400 hover:text-gray-600"}`}
+                                                                        className={`p-0.5 transition-colors ${item.notes ? "text-blue-400 hover:text-blue-600" : "opacity-0 group-hover/row:opacity-100 text-pf-grey/50 hover:text-pf-grey"}`}
                                                                     >
                                                                         <MessageSquare className="h-3.5 w-3.5" />
                                                                     </button>
@@ -1289,7 +1289,7 @@ export default function LeadsMondayBoard() {
                                                                 <div className="flex justify-center"><Avatar name={item.responsible} /></div>
                                                             ) : (
                                                                 <div className="flex justify-center">
-                                                                    <span className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-dashed border-gray-300 text-gray-300">
+                                                                    <span className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-dashed border-pf-grey/20 text-gray-300">
                                                                         <User className="h-3.5 w-3.5" />
                                                                     </span>
                                                                 </div>
@@ -1304,7 +1304,7 @@ export default function LeadsMondayBoard() {
                                                     )}
 
                                                     {isColumnVisible("deadline") && (
-                                                        <td className="px-2 py-1 text-center text-[13px] text-gray-600">{formatDeadline(item.deadline)}</td>
+                                                        <td className="px-2 py-1 text-center text-[13px] text-pf-grey">{formatDeadline(item.deadline)}</td>
                                                     )}
 
                                                     {isColumnVisible("priority") && (
@@ -1314,7 +1314,7 @@ export default function LeadsMondayBoard() {
                                                     )}
 
                                                     {isColumnVisible("notes") && (
-                                                        <td className="px-2 py-1 text-[13px] text-gray-600">
+                                                        <td className="px-2 py-1 text-[13px] text-pf-grey">
                                                             {editingNotesId === item.id ? (
                                                                 <input
                                                                     type="text"
@@ -1322,12 +1322,12 @@ export default function LeadsMondayBoard() {
                                                                     onChange={(e) => updateLead(item.id, { notes: e.target.value })}
                                                                     onBlur={() => setEditingNotesId(null)}
                                                                     onKeyDown={(e) => { if (e.key === "Enter" || e.key === "Escape") setEditingNotesId(null); }}
-                                                                    className="w-full h-7 rounded border border-[#0073EA] px-2 text-sm outline-none ring-1 ring-[#0073EA]"
+                                                                    className="w-full h-7 rounded border border-pf-blue px-2 text-sm outline-none ring-1 ring-[#0073EA]"
                                                                     autoFocus
                                                                 />
                                                             ) : (
                                                                 <span
-                                                                    className="block truncate max-w-[140px] cursor-pointer hover:text-gray-900"
+                                                                    className="block truncate max-w-[140px] cursor-pointer hover:text-pf-black"
                                                                     onClick={() => setEditingNotesId(item.id)}
                                                                 >
                                                                     {item.notes || <span className="text-gray-300">—</span>}
@@ -1337,20 +1337,20 @@ export default function LeadsMondayBoard() {
                                                     )}
 
                                                     {isColumnVisible("value") && (
-                                                        <td className="px-2 py-1 text-right text-[13px] font-medium text-gray-900 font-mono">{item.value}</td>
+                                                        <td className="px-2 py-1 text-right text-[13px] font-medium text-pf-black font-mono">{item.value}</td>
                                                     )}
 
                                                     {isColumnVisible("files") && (
-                                                        <td className="px-2 py-1 text-center text-[13px] text-gray-500">
+                                                        <td className="px-2 py-1 text-center text-[13px] text-pf-grey">
                                                             <button
                                                                 onClick={() => updateLead(item.id, { files: item.files + 1 })}
-                                                                className="inline-flex items-center gap-1 hover:text-[#0073EA] transition-colors"
+                                                                className="inline-flex items-center gap-1 hover:text-pf-blue transition-colors"
                                                                 title="Adicionar arquivo"
                                                             >
                                                                 {item.files > 0 ? (
                                                                     <><FileText className="h-3.5 w-3.5" /><span>{item.files}</span></>
                                                                 ) : (
-                                                                    <span className="text-gray-300 hover:text-[#0073EA]"><Plus className="h-3.5 w-3.5" /></span>
+                                                                    <span className="text-gray-300 hover:text-pf-blue"><Plus className="h-3.5 w-3.5" /></span>
                                                                 )}
                                                             </button>
                                                         </td>
@@ -1384,7 +1384,7 @@ export default function LeadsMondayBoard() {
                                                                 value={newItemName}
                                                                 onChange={(e) => setNewItemName(e.target.value)}
                                                                 placeholder="Nome do lead..."
-                                                                className="h-7 w-64 rounded border border-gray-300 px-2 text-sm outline-none focus:border-[#0073EA] focus:ring-1 focus:ring-[#0073EA]"
+                                                                className="h-7 w-64 rounded border border-pf-grey/20 px-2 text-sm outline-none focus:border-pf-blue focus:ring-1 focus:ring-pf-blue"
                                                                 onBlur={() => { if (!newItemName.trim()) setAddingToGroup(null); }}
                                                                 onKeyDown={(e) => { if (e.key === "Escape") { setAddingToGroup(null); setNewItemName(""); } }}
                                                             />
@@ -1392,7 +1392,7 @@ export default function LeadsMondayBoard() {
                                                     ) : (
                                                         <button
                                                             onClick={() => { setAddingToGroup(group.id); setNewItemName(""); }}
-                                                            className="text-[13px] text-gray-400 hover:text-gray-600 transition-colors"
+                                                            className="text-[13px] text-pf-grey/50 hover:text-pf-grey transition-colors"
                                                         >
                                                             + Adicionar lead
                                                         </button>
@@ -1452,14 +1452,14 @@ export default function LeadsMondayBoard() {
                                                 {isColumnVisible("notes") && <td className="px-2 py-2" />}
                                                 {isColumnVisible("value") && (
                                                     <td className="px-2 py-2 text-right">
-                                                        <div className="text-[13px] font-bold text-gray-900 font-mono">R$ {totalValue.toLocaleString("pt-BR")}</div>
-                                                        <div className="text-[10px] text-gray-400">Total</div>
+                                                        <div className="text-[13px] font-bold text-pf-black font-mono">R$ {totalValue.toLocaleString("pt-BR")}</div>
+                                                        <div className="text-[10px] text-pf-grey/50">Total</div>
                                                     </td>
                                                 )}
                                                 {isColumnVisible("files") && (
                                                     <td className="px-2 py-2 text-center">
-                                                        <div className="text-[13px] text-gray-600">{totalFiles}</div>
-                                                        <div className="text-[10px] text-gray-400">Arquivos</div>
+                                                        <div className="text-[13px] text-pf-grey">{totalFiles}</div>
+                                                        <div className="text-[10px] text-pf-grey/50">Arquivos</div>
                                                     </td>
                                                 )}
                                                 {isColumnVisible("timeline") && (

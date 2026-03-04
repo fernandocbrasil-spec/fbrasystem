@@ -25,6 +25,7 @@ import type { MockPendingApproval, MockNotification, MockEvent } from "@/lib/moc
 import type { FollowUpDigest } from "@/lib/actions/leads";
 import type { DashboardKPIs, CashflowChartData } from "@/lib/billing/forecast";
 import { fmtKpi } from "@/lib/db/format";
+import { PageShell } from "@/components/ui/page-shell";
 
 // ==================== FINANCIAL SUMMARY (single card) ====================
 
@@ -52,9 +53,9 @@ function FinancialSummary({ kpis }: { kpis: DashboardKPIs | null }) {
     ] : STATIC_KPIS;
 
     return (
-        <div className="bg-white rounded-xl shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-5">
+        <div className="bg-white rounded-xl border border-pf-grey/10 p-5">
             <div className="flex items-center justify-between mb-4">
-                <h3 className="text-[10px] font-bold uppercase tracking-[0.15em] text-pf-grey/70">
+                <h3 className="text-[10px] font-bold uppercase tracking-[0.12em] text-pf-grey/50">
                     Resumo Financeiro — {monthLabel}
                 </h3>
                 <Link href="/previsibilidade" className="text-[10px] text-pf-blue font-bold hover:text-pf-black flex items-center gap-1 transition-colors">
@@ -99,9 +100,9 @@ function PipelineFunnel() {
     const maxCount = Math.max(...stages.map((s) => s.count));
 
     return (
-        <div className="bg-white rounded-xl p-6 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+        <div className="bg-white rounded-xl border border-pf-grey/10 p-5">
             <div className="flex items-center justify-between mb-5">
-                <h3 className="text-[10px] font-bold uppercase tracking-[0.15em] text-pf-grey/70">
+                <h3 className="text-[10px] font-bold uppercase tracking-[0.12em] text-pf-grey/50">
                     Pipeline CRM
                 </h3>
                 <Link href="/leads" className="text-[10px] text-pf-blue font-bold hover:text-pf-black flex items-center gap-1 transition-colors">
@@ -109,7 +110,7 @@ function PipelineFunnel() {
                 </Link>
             </div>
             <p className="text-2xl font-bold text-pf-black mb-5">
-                {total} <span className="text-xs font-semibold text-pf-grey/60">leads ativos</span>
+                {total} <span className="text-xs font-semibold text-pf-grey/50">leads ativos</span>
             </p>
 
             {/* Funnel bars */}
@@ -118,7 +119,7 @@ function PipelineFunnel() {
                     const pct = (stage.count / maxCount) * 100;
                     return (
                         <div key={stage.name} className="flex items-center gap-3 group">
-                            <span className="text-[10px] font-semibold text-pf-grey/60 w-20 text-right shrink-0">{stage.name}</span>
+                            <span className="text-[10px] font-semibold text-pf-grey/50 w-20 text-right shrink-0">{stage.name}</span>
                             <div className="flex-1 h-7 bg-background rounded-md overflow-hidden relative">
                                 <div
                                     className="h-full rounded-md transition-all duration-500 flex items-center justify-end pr-2.5"
@@ -206,9 +207,9 @@ function CashflowChart({ data }: { data: CashflowChartData | null }) {
     }));
 
     return (
-        <div className="bg-white rounded-xl p-6 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+        <div className="bg-white rounded-xl border border-pf-grey/10 p-5">
             <div className="flex items-center justify-between mb-4">
-                <h3 className="text-[10px] font-bold uppercase tracking-[0.15em] text-pf-grey/70">
+                <h3 className="text-[10px] font-bold uppercase tracking-[0.12em] text-pf-grey/50">
                     Fluxo de Caixa
                 </h3>
                 <Link href="/fluxo-de-caixa" className="text-[10px] text-pf-blue font-bold hover:text-pf-black flex items-center gap-1 transition-colors">
@@ -386,21 +387,21 @@ export default function DashboardPage() {
     }, [loadData]);
 
     return (
-        <div className="max-w-[1400px] mx-auto space-y-5">
+        <PageShell>
 
             {/* ── GREETING ── */}
             <div>
                 <h1 className="text-xl font-bold text-pf-black font-sans tracking-tight">
                     Ola, Fernando Brasil
                 </h1>
-                <p className="text-xs text-pf-grey/60 font-sans mt-0.5">
+                <p className="text-xs text-pf-grey/50 font-sans mt-0.5">
                     {dateStr}
                 </p>
             </div>
 
             {/* ── FOLLOW-UP ALERT (governance) ── */}
             {followUp.total > 0 && (
-                <div className="bg-white rounded-xl p-4 shadow-[0_1px_3px_rgba(0,0,0,0.04)] border-l-[3px] border-red-400">
+                <div className="bg-white rounded-lg border border-pf-grey/10 border-l-[3px] border-l-red-400 p-4">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
                             <div className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center">
@@ -453,7 +454,7 @@ export default function DashboardPage() {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
                 {/* Agenda */}
-                <div className="bg-white rounded-xl p-5 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+                <div className="bg-white rounded-xl p-5 border border-pf-grey/10">
                     <div className="flex items-center gap-2.5 mb-4">
                         <div className="w-7 h-7 rounded-lg bg-pf-blue/8 flex items-center justify-center">
                             <CalendarDays className="h-3.5 w-3.5 text-pf-blue" />
@@ -484,7 +485,7 @@ export default function DashboardPage() {
                 </div>
 
                 {/* Pendencias */}
-                <div className="bg-white rounded-xl p-5 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+                <div className="bg-white rounded-xl p-5 border border-pf-grey/10">
                     <div className="flex items-center gap-2.5 mb-4">
                         <div className="w-7 h-7 rounded-lg bg-red-50 flex items-center justify-center">
                             <Clock className="h-3.5 w-3.5 text-red-500" />
@@ -525,7 +526,7 @@ export default function DashboardPage() {
                 </div>
 
                 {/* Avisos */}
-                <div className="bg-white rounded-xl p-5 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+                <div className="bg-white rounded-xl p-5 border border-pf-grey/10">
                     <div className="flex items-center gap-2.5 mb-4">
                         <div className="w-7 h-7 rounded-lg bg-amber-50 flex items-center justify-center">
                             <Bell className="h-3.5 w-3.5 text-amber-500" />
@@ -562,6 +563,6 @@ export default function DashboardPage() {
                 <PipelineFunnel />
                 <CashflowChart data={cashflow} />
             </div>
-        </div>
+        </PageShell>
     );
 }
